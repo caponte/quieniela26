@@ -567,8 +567,73 @@ export function BracketForm({ teams, existing, locked }: Props) {
   const [ft1, ft2] = getFinalTeams()
   const [tp1, tp2] = getThirdPlaceTeams()
 
+  // Derive 3rd-place pick per group from r32_third slots
+  const groupThird: Record<string, string | null> = Object.fromEntries(
+    ["A","B","C","D","E","F","G","H","I","J","K","L"].map(g => [g, null])
+  )
+  pred.r32_third.forEach(teamId => {
+    if (teamId) {
+      const t = teamById[teamId]
+      if (t) groupThird[t.group_name] = teamId
+    }
+  })
+
   return (
-    <div className="space-y-4">
+    <div>
+
+    {/* Groups guide — sticky below navbar */}
+    <div className="sticky top-14 z-40 -mx-4 bg-(--color-background) border-b border-(--color-border) shadow-lg">
+      <div className="overflow-x-auto scrollbar-thin pb-1">
+        <div className="flex gap-2 px-4 py-2 min-w-max">
+          {(["A","B","C","D","E","F","G","H","I","J","K","L"] as const).map(g => {
+            const gTeams = teamsByGroup[g] ?? []
+            const first  = pred.groups[g]?.first
+            const second = pred.groups[g]?.second
+            const third  = groupThird[g]
+            return (
+              <div
+                key={g}
+                className="w-36 shrink-0 rounded-xl overflow-hidden border border-(--color-border) bg-(--color-surface)"
+              >
+                {/* card header */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-(--color-surface-2) border-b border-(--color-border)">
+                  <span className="text-[8px] font-black uppercase tracking-[0.15em] text-(--color-muted)">Grupo</span>
+                  <span className="text-sm font-black text-(--color-accent) leading-none">{g}</span>
+                </div>
+                {/* teams */}
+                <div className="px-2 py-1.5 space-y-1">
+                  {gTeams.map(t => {
+                    const pos = first === t.id ? "1°" : second === t.id ? "2°" : third === t.id ? "3°" : null
+                    const isThird = pos === "3°"
+                    return (
+                      <div key={t.id} className="flex items-center gap-1.5">
+                        <img
+                          src={t.flag_url ?? ""}
+                          alt={t.name}
+                          title={t.name}
+                          className="w-5 h-3.5 object-cover rounded-[2px] shrink-0 border border-(--color-border)"
+                          onError={e => { (e.target as HTMLImageElement).style.opacity = "0" }}
+                        />
+                        <span className={`text-[9px] truncate flex-1 leading-none ${pos ? "text-(--color-foreground) font-semibold" : "text-(--color-muted)"}`}>
+                          {t.name}
+                        </span>
+                        {pos && (
+                          <span className={`text-[8px] font-black shrink-0 leading-none ${isThird ? "text-(--color-muted)" : "text-(--color-accent)"}`}>
+                            {pos}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+
+    <div className="space-y-4 pt-4">
       {/* Top header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -779,6 +844,7 @@ export function BracketForm({ teams, existing, locked }: Props) {
           </button>
         </div>
       )}
+    </div>
     </div>
   )
 }
