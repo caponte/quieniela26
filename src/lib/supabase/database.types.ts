@@ -125,6 +125,18 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["bracket_points"]["Row"], "updated_at" | "id"> & { id?: string };
         Update: Partial<Database["public"]["Tables"]["bracket_points"]["Insert"]>;
       };
+      players: {
+        Row: {
+          id: string;
+          team_id: string;
+          name: string;
+          position: "GK" | "DEF" | "MID" | "FWD" | null;
+          jersey_number: number | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["players"]["Row"], "created_at" | "id"> & { id?: string };
+        Update: Partial<Database["public"]["Tables"]["players"]["Insert"]>;
+      };
       match_predictions: {
         Row: {
           id: string;
@@ -135,6 +147,7 @@ export interface Database {
           away_goals: number;
           first_team_to_score: string | null;
           first_goal_scorer: string | null;
+          first_goal_scorer_id: string | null;
           has_penalty: boolean;
           submitted_at: string;
           locked_at: string | null;
