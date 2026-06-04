@@ -1,0 +1,86 @@
+"use server"
+
+import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
+import type { EventType, MatchStatus } from "@/lib/supabase/database.types"
+
+type QueryResult = Promise<{ error: { message: string } | null }>
+type WithEq = { eq: (col: string, val: unknown) => QueryResult }
+
+async function requireAdmin() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/")
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single() as unknown as { data: { role: string } | null }
+
+  if (profile?.role !== "admin") redirect("/dashboard")
+  return supabase
+}
+
+export async function updateMatchResult(
+  matchId: string,
+  homeScore: number | null,
+  awayScore: number | null,
+  status: MatchStatus
+) {
+  const supabase = await requireAdmin()
+
+  const { error } = await (
+    supabase.from("matches").update as unknown as (v: unknown) => WithEq
+  )({ home_score: homeScore, away_score: awayScore, status }).eq("id", matchId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/admin/match/${matchId}`)
+  revalidatePath("/admin")
+  return { success: true }
+}
+
+export interface AddEventInput {
+  matchId: string
+  type: EventType
+  teamId: string
+  playerName: string | null
+  minute: number | null
+  isFirstGoal: boolean
+  isOwnGoal: boolean
+  penaltyScored: boolean | null
+}
+
+export async function addMatchEvent(input: AddEventInput) {
+  const supabase = await requireAdmin()
+
+  const { error } = await (
+    supabase.from("match_events").insert as unknown as (v: unknown) => QueryResult
+  )({
+    match_id: input.matchId,
+    type: input.type,
+    team_id: input.teamId,
+    player_name: input.playerName || null,
+    minute: input.minute || null,
+    is_first_goal: input.isFirstGoal,
+    is_own_goal: input.isOwnGoal,
+    penalty_scored: input.type === "penalty" ? input.penaltyScored : null,
+  })
+
+  if (error) return { error: error.message }
+  revalidatePath(`/admin/match/${input.matchId}`)
+  return { success: true }
+}
+
+export async function deleteMatchEvent(eventId: string, matchId: string) {
+  const supabase = await requireAdmin()
+
+  const { error } = await (
+    supabase.from("match_events").delete as unknown as () => WithEq
+  )().eq("id", eventId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/admin/match/${matchId}`)
+  return { success: true }
+}

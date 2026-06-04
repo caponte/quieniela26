@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { saveMatchPrediction } from "@/lib/actions/match"
 import { isMatchLocked } from "@/lib/utils/jornada"
 import type { JornadaSlug } from "@/lib/utils/jornada"
@@ -70,6 +71,9 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
   const match = matches[current]
   const state = states[current]
   const locked = isMatchLocked(new Date(match.match_date))
+    || match.status === "live"
+    || match.status === "finished"
+    || match.status === "postponed"
   const alreadyFinished = match.status === "finished"
 
   const matchPlayers = useMemo(() => {
@@ -127,17 +131,28 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => current > 0 ? goTo(current - 1) : window.history.back()}
-          className="text-(--color-muted) hover:text-white transition-colors"
-          aria-label="Atrás"
+          onClick={() => current > 0 ? goTo(current - 1) : undefined}
+          className={`text-(--color-muted) hover:text-white transition-colors ${current === 0 ? "invisible" : ""}`}
+          aria-label="Partido anterior"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <span className="text-sm font-medium text-(--color-muted)">
-          {label} · Partido {current + 1} de {matches.length}
-        </span>
+        <Link
+          href="/predict/match"
+          className="flex flex-col items-center gap-0.5 group"
+        >
+          <span className="text-xs text-(--color-muted) group-hover:text-white transition-colors flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Jornadas
+          </span>
+          <span className="text-sm font-medium text-white">
+            {label} · Partido {current + 1} de {matches.length}
+          </span>
+        </Link>
         <button
           onClick={() => current < matches.length - 1 && goTo(current + 1)}
           disabled={current >= matches.length - 1}
@@ -336,7 +351,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
       <div className="flex flex-wrap justify-center gap-1.5 mt-8">
         {matches.map((m, i) => {
           const isSaved = saved.has(i)
-          const isLocked = isMatchLocked(new Date(m.match_date))
+          const isLocked = isMatchLocked(new Date(m.match_date)) || m.status === "live" || m.status === "finished" || m.status === "postponed"
           return (
             <button
               key={m.id}

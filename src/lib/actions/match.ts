@@ -23,11 +23,14 @@ export async function saveMatchPrediction(input: MatchPredictionInput) {
   // Fetch match to check lock
   const { data: match } = await supabase
     .from("matches")
-    .select("match_date")
+    .select("match_date, status")
     .eq("id", input.matchId)
-    .single() as unknown as { data: { match_date: string } | null }
+    .single() as unknown as { data: { match_date: string; status: string } | null }
 
   if (!match) return { error: "Partido no encontrado." }
+  if (match.status === "live" || match.status === "finished" || match.status === "postponed") {
+    return { error: "Este partido ya está bloqueado." }
+  }
   if (isMatchLocked(new Date(match.match_date))) {
     return { error: "Este partido ya está bloqueado." }
   }
