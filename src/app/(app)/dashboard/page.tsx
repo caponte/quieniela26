@@ -73,14 +73,19 @@ export default async function DashboardPage() {
             del inicio del torneo.
           </p>
         </Link>
-        <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-5 opacity-60">
+        <Link
+          href="/predict/match"
+          className="bg-(--color-surface) border border-(--color-border) rounded-xl p-5 hover:border-(--color-primary) transition group"
+        >
           <p className="text-2xl mb-2">📋</p>
-          <h2 className="font-bold text-base">Modo Jornada</h2>
+          <h2 className="font-bold text-base group-hover:text-(--color-primary) transition">
+            Modo Jornada
+          </h2>
           <p className="text-(--color-muted) text-sm mt-1">
             Predice cada partido individualmente hasta 10 min antes del
-            kick-off. Disponible pronto.
+            kick-off.
           </p>
-        </div>
+        </Link>
       </section>
 
       {/* Upcoming matches */}
@@ -95,7 +100,7 @@ export default async function DashboardPage() {
             {matches.map((match) => (
               <Link
                 key={match.id}
-                href={`/predict/match/${match.id}`}
+                href="/predict/match"
                 className="flex items-center justify-between bg-(--color-surface) border border-(--color-border) rounded-xl px-4 py-3 hover:border-(--color-primary) transition"
               >
                 <span className="font-medium text-sm w-36 truncate">
