@@ -37,6 +37,8 @@ async function syncMatch(
   apiMatch: any,
   ourMatch: { id: string; status: string; home_team_id: string; away_team_id: string }
 ) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
   const apiStatus = apiMatch.status as FdStatus;
   const newStatus = toMatchStatus(apiStatus);
   const homeGoals: number | null = apiMatch.score?.fullTime?.home ?? null;
@@ -57,7 +59,7 @@ async function syncMatch(
     }
 
     if (goals.length > 0) {
-      await supabase.from("match_events").delete().eq("match_id", ourMatch.id);
+      await db.from("match_events").delete().eq("match_id", ourMatch.id);
 
       let firstGoalDone = false;
       for (const goal of goals) {
@@ -68,7 +70,7 @@ async function syncMatch(
         const isHomeTeam = goal.team?.id === apiMatch.homeTeam?.id;
         const teamId = isHomeTeam ? ourMatch.home_team_id : ourMatch.away_team_id;
 
-        const { error: evtErr } = await supabase.from("match_events").insert({
+        const { error: evtErr } = await db.from("match_events").insert({
           match_id: ourMatch.id,
           type: "goal",
           team_id: teamId,
@@ -77,14 +79,14 @@ async function syncMatch(
           is_first_goal: isFirstGoal,
           is_own_goal: isOwnGoal,
           penalty_scored: goal.type === "PENALTY" ? true : null,
-        } as any);
+        });
 
         if (evtErr) errors.push(`event: ${evtErr.message}`);
       }
     }
 
     if (isPenaltyShootout) {
-      await supabase.from("match_events").insert({
+      await db.from("match_events").insert({
         match_id: ourMatch.id,
         type: "penalty",
         team_id: ourMatch.home_team_id,
@@ -93,13 +95,13 @@ async function syncMatch(
         is_first_goal: false,
         is_own_goal: false,
         penalty_scored: true,
-      } as any);
+      });
     }
   }
 
-  const { error: updateErr } = await supabase
+  const { error: updateErr } = await db
     .from("matches")
-    .update({ home_score: homeGoals, away_score: awayGoals, status: newStatus } as any)
+    .update({ home_score: homeGoals, away_score: awayGoals, status: newStatus })
     .eq("id", ourMatch.id);
 
   if (updateErr) errors.push(`match update: ${updateErr.message}`);
