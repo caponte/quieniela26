@@ -50,7 +50,7 @@ export async function Navbar() {
             Bracket
           </Link>
           <Link
-            href="/league/create"
+            href="/league"
             className="px-3 py-1.5 rounded-lg text-(--color-muted) hover:text-foreground hover:bg-(--color-surface-2) transition"
           >
             Ligas

@@ -48,7 +48,7 @@ function formatMatchDate(dateStr: string) {
   const d = new Date(dateStr)
   return d.toLocaleDateString("es-MX", {
     weekday: "short", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City",
+    hour: "2-digit", minute: "2-digit",
   })
 }
 
@@ -279,8 +279,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
                 onChange={(e) => setScorerSearch(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm placeholder:text-(--color-muted) focus:outline-none focus:border-accent/50 disabled:opacity-50"
               />
-              <div className="max-h-40 overflow-y-auto scrollbar-thin flex flex-col gap-1">
-                {/* "Ninguno" option */}
+              <div className="max-h-48 overflow-y-auto scrollbar-thin flex flex-col gap-1">
                 <button
                   disabled={locked}
                   onClick={() => updateState({ scorerId: null, scorerName: null })}
@@ -292,26 +291,20 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
                 >
                   — Ninguno / No sé
                 </button>
-                {filteredPlayers.map((p) => (
-                  <button
-                    key={p.id}
-                    disabled={locked}
-                    onClick={() => updateState({ scorerId: p.id, scorerName: p.name })}
-                    className={`text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2 ${
-                      state.scorerId === p.id
-                        ? "bg-accent/10 text-(--color-accent)"
-                        : "text-(--color-muted) hover:bg-white/5 hover:text-white"
-                    } disabled:opacity-50`}
-                  >
-                    {p.jersey_number !== null && (
-                      <span className="text-xs w-5 text-right opacity-60">{p.jersey_number}</span>
-                    )}
-                    <span>{p.name}</span>
-                    {p.position && (
-                      <span className="text-xs opacity-50 ml-auto">{p.position}</span>
-                    )}
-                  </button>
-                ))}
+                <ScorerGroup
+                  team={match.home_team}
+                  players={filteredPlayers.filter((p) => p.team_id === match.home_team?.id)}
+                  selectedId={state.scorerId}
+                  locked={locked}
+                  onSelect={(p) => updateState({ scorerId: p.id, scorerName: p.name })}
+                />
+                <ScorerGroup
+                  team={match.away_team}
+                  players={filteredPlayers.filter((p) => p.team_id === match.away_team?.id)}
+                  selectedId={state.scorerId}
+                  locked={locked}
+                  onSelect={(p) => updateState({ scorerId: p.id, scorerName: p.name })}
+                />
                 {filteredPlayers.length === 0 && scorerSearch && (
                   <p className="text-xs text-(--color-muted) px-3 py-2">Sin resultados</p>
                 )}
@@ -347,7 +340,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
         )}
       </div>
 
-      {/* Match dots navigation */}
+      {/* Match navigation with flags */}
       <div className="flex flex-wrap justify-center gap-1.5 mt-8">
         {matches.map((m, i) => {
           const isSaved = saved.has(i)
@@ -356,17 +349,20 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
             <button
               key={m.id}
               onClick={() => goTo(i)}
-              title={`M${m.match_number}`}
-              className={`w-3 h-3 rounded-full transition-all ${
+              title={`M${m.match_number} · ${m.home_team?.name ?? "?"} vs ${m.away_team?.name ?? "?"}`}
+              className={`flex items-center gap-0.5 rounded-md p-0.5 border transition-all ${
                 i === current
-                  ? "bg-(--color-accent) scale-125"
+                  ? "border-(--color-accent) scale-110 shadow-[0_0_0_1px_var(--color-accent)]"
                   : isSaved
-                    ? "bg-emerald-500/70 hover:bg-emerald-500"
+                    ? "border-emerald-500/60 hover:border-emerald-400"
                     : isLocked
-                      ? "bg-white/15"
-                      : "bg-white/25 hover:bg-white/40"
+                      ? "border-white/8 opacity-40"
+                      : "border-white/15 hover:border-white/35"
               }`}
-            />
+            >
+              <MiniFlag url={m.home_team?.flag_url ?? null} name={m.home_team?.name ?? ""} />
+              <MiniFlag url={m.away_team?.flag_url ?? null} name={m.away_team?.name ?? ""} />
+            </button>
           )
         })}
       </div>
@@ -425,5 +421,54 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-2">{title}</p>
       {children}
     </div>
+  )
+}
+
+function ScorerGroup({
+  team, players, selectedId, locked, onSelect,
+}: {
+  team: Team | null
+  players: Player[]
+  selectedId: string | null
+  locked: boolean
+  onSelect: (p: Player) => void
+}) {
+  if (!team || players.length === 0) return null
+  return (
+    <>
+      <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
+        {team.flag_url && (
+          <Image src={team.flag_url} alt={team.name} width={16} height={11} className="rounded-sm object-cover shrink-0" />
+        )}
+        <span className="text-xs font-semibold text-(--color-muted) uppercase tracking-wider">{team.name}</span>
+      </div>
+      {players.map((p) => (
+        <button
+          key={p.id}
+          disabled={locked}
+          onClick={() => onSelect(p)}
+          className={`text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+            selectedId === p.id
+              ? "bg-accent/10 text-(--color-accent)"
+              : "text-(--color-muted) hover:bg-white/5 hover:text-white"
+          } disabled:opacity-50`}
+        >
+          {p.jersey_number !== null && (
+            <span className="text-xs w-5 text-right opacity-60 tabular-nums">{p.jersey_number}</span>
+          )}
+          <span>{p.name}</span>
+          {p.position && (
+            <span className="text-xs opacity-50 ml-auto">{p.position}</span>
+          )}
+        </button>
+      ))}
+    </>
+  )
+}
+
+function MiniFlag({ url, name }: { url: string | null; name: string }) {
+  if (!url) return <div className="w-4 h-2.75 rounded-sm bg-white/10 shrink-0" />
+  return (
+    <Image src={url} alt={name} width={16} height={11} className="rounded-sm object-cover shrink-0" />
   )
 }

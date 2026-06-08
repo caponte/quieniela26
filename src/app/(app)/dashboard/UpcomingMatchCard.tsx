@@ -37,7 +37,6 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("es-MX", {
     weekday: "short", day: "numeric", month: "short",
     hour: "2-digit", minute: "2-digit",
-    timeZone: "America/Mexico_City",
   })
 }
 
