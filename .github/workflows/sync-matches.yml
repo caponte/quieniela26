@@ -1,0 +1,24 @@
+name: Sync Match Results
+
+on:
+  schedule:
+    # Every 5 minutes during WC2026 (Jun 11 – Jul 19 UTC)
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync endpoint
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST https://quieniela26.vercel.app/api/cron/sync-matches \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -H "Content-Type: application/json")
+          echo "HTTP status: $response"
+          if [ "$response" != "200" ]; then
+            echo "Sync failed with status $response"
+            exit 1
+          fi

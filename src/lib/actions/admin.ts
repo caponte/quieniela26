@@ -5,6 +5,39 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import type { EventType, MatchStatus } from "@/lib/supabase/database.types"
 
+export async function triggerManualSync() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "No autorizado" }
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single() as unknown as { data: { role: string } | null }
+
+  if (profile?.role !== "admin") return { error: "No autorizado" }
+
+  const base = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000"
+
+  try {
+    const res = await fetch(`${base}/api/cron/sync-matches`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    })
+    const data = await res.json()
+    return { data }
+  } catch (e) {
+    return { error: String(e) }
+  }
+}
+
 type QueryResult = Promise<{ error: { message: string } | null }>
 type WithEq = { eq: (col: string, val: unknown) => QueryResult }
 
@@ -84,3 +117,4 @@ export async function deleteMatchEvent(eventId: string, matchId: string) {
   revalidatePath(`/admin/match/${matchId}`)
   return { success: true }
 }
+

@@ -35,9 +35,18 @@ export default async function AdminPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Panel Admin</h1>
-        <p className="text-(--color-muted) text-sm mt-1">Administra resultados y eventos de los partidos</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Panel Admin</h1>
+          <p className="text-(--color-muted) text-sm mt-1">Administra resultados y eventos de los partidos</p>
+        </div>
+        <a
+          href="/admin/status"
+          className="text-sm px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors flex items-center gap-2"
+        >
+          <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+          Estado del sync
+        </a>
       </div>
       <AdminMatchList matches={enriched} />
     </div>

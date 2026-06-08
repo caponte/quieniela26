@@ -58,6 +58,7 @@ export interface Database {
           away_score: number | null;
           status: MatchStatus;
           match_number: number;
+          api_fixture_id: number | null;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["matches"]["Row"], "created_at" | "id"> & { id?: string };
