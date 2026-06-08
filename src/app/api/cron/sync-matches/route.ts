@@ -147,11 +147,12 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const in4h = new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString();
 
+  type OurMatch = { id: string; api_fixture_id: number | null; status: string; home_team_id: string; away_team_id: string };
   const { data: ourMatches, error: matchErr } = await supabase
     .from("matches")
     .select("id, api_fixture_id, status, home_team_id, away_team_id")
     .not("api_fixture_id", "is", null)
-    .or(`status.eq.live,and(status.eq.scheduled,match_date.lte.${in4h})`);
+    .or(`status.eq.live,and(status.eq.scheduled,match_date.lte.${in4h})`) as unknown as { data: OurMatch[] | null; error: { message: string } | null };
 
   if (matchErr) return NextResponse.json({ error: matchErr.message }, { status: 500 });
   if (!ourMatches || ourMatches.length === 0) {
