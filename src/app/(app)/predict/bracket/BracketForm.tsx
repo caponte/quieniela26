@@ -473,10 +473,13 @@ export function BracketForm({ teams, existing, locked }: Props) {
         colIdx: 0,
       })
     } else {
+      const usedThirds = new Set(pred.r32_third.filter((id, i) => id && i !== slot))
       const poolTeams = slotDef.pool.flatMap(g => {
         const firstId  = pred.groups[g]?.first
         const secondId = pred.groups[g]?.second
-        return (teamsByGroup[g] ?? []).filter(t => t.id !== firstId && t.id !== secondId)
+        return (teamsByGroup[g] ?? []).filter(t =>
+          t.id !== firstId && t.id !== secondId && !usedThirds.has(t.id)
+        )
       })
       openPicker({
         teams: poolTeams,
