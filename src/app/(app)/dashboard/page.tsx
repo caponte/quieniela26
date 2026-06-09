@@ -65,6 +65,7 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Step 1: core data in parallel
   const [profileResult, matchesResult, leaguesResult] = await Promise.all([
     supabase.from("users").select("name").eq("id", user!.id).single(),
 
@@ -92,50 +93,77 @@ export default async function DashboardPage() {
 
   const rawLeagues = (leaguesResult.data ?? []) as unknown as { league: LeagueRow | null }[];
   const leagues = rawLeagues.filter((l) => l.league !== null).map((l) => l.league!);
+  const firstLeague: LeagueRow | null = leagues[0] ?? null;
 
-  // Fetch match predictions
-  const { data: rawPreds } = matchIds.length
-    ? await supabase
-        .from("match_predictions")
-        .select("match_id, home_goals, away_goals, first_team_to_score, has_penalty, first_goal_scorer")
-        .eq("user_id", user!.id)
-        .is("league_id", null)
-        .in("match_id", matchIds) as unknown as { data: PredRow[] | null }
-    : { data: [] as PredRow[] };
+  // Step 2: user's own predictions + first league members (parallel)
+  const [rawPredsResult, firstLeagueMembersResult] = await Promise.all([
+    matchIds.length
+      ? supabase
+          .from("match_predictions")
+          .select("match_id, home_goals, away_goals, first_team_to_score, has_penalty, first_goal_scorer")
+          .eq("user_id", user!.id)
+          .is("league_id", null)
+          .in("match_id", matchIds) as unknown as Promise<{ data: PredRow[] | null }>
+      : Promise.resolve({ data: [] as PredRow[] }),
 
-  const predByMatchId = Object.fromEntries((rawPreds ?? []).map((p) => [p.match_id, p]));
+    firstLeague
+      ? supabase
+          .from("league_members")
+          .select("user_id, role")
+          .eq("league_id", firstLeague.id) as unknown as Promise<{ data: MemberRow[] | null }>
+      : Promise.resolve({ data: [] as MemberRow[] }),
+  ]);
+
+  const predByMatchId = Object.fromEntries((rawPredsResult.data ?? []).map((p) => [p.match_id, p]));
+  const firstLeagueMembers = firstLeagueMembersResult.data ?? [];
+  const firstLeagueMemberIds = firstLeagueMembers.map((m) => m.user_id);
+
+  // Step 3: leaderboard profiles/points + league pred counts (parallel)
+  const [usersRes, jornadaRes, bracketRes, leaguePredsRes] = await Promise.all([
+    firstLeagueMemberIds.length
+      ? supabase.from("users").select("id, name, avatar_url").in("id", firstLeagueMemberIds) as unknown as Promise<{ data: UserRow[] | null }>
+      : Promise.resolve({ data: [] as UserRow[] }),
+
+    firstLeagueMemberIds.length
+      ? supabase.from("leaderboard_jornada").select("user_id, total_points").is("league_id", null).in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: PtsRow[] | null }>
+      : Promise.resolve({ data: [] as PtsRow[] }),
+
+    firstLeagueMemberIds.length
+      ? supabase.from("leaderboard_bracket").select("user_id, total_points").is("league_id", null).in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: PtsRow[] | null }>
+      : Promise.resolve({ data: [] as PtsRow[] }),
+
+    firstLeagueMemberIds.length && matchIds.length
+      ? supabase
+          .from("match_predictions")
+          .select("match_id, user_id")
+          .in("match_id", matchIds)
+          .in("user_id", firstLeagueMemberIds)
+          .is("league_id", null) as unknown as Promise<{ data: { match_id: string; user_id: string }[] | null }>
+      : Promise.resolve({ data: [] as { match_id: string; user_id: string }[] }),
+  ]);
+
+  // League pred counts per match
+  const leaguePredCounts: Record<string, number> = {};
+  for (const p of leaguePredsRes.data ?? []) {
+    leaguePredCounts[p.match_id] = (leaguePredCounts[p.match_id] ?? 0) + 1;
+  }
 
   const matchCards: MatchCardData[] = matches.map((m) => ({
     ...m,
     prediction: predByMatchId[m.id] ?? null,
     jornadaSlug: jornadaSlugForMatch(m),
+    leagueStats: firstLeagueMemberIds.length > 0
+      ? { predicted: leaguePredCounts[m.id] ?? 0, total: firstLeagueMemberIds.length }
+      : null,
   }));
 
-  // Fetch leaderboard for first league
-  let leaderboard: LeaderboardEntry[] = [];
-  let firstLeague: LeagueRow | null = leagues[0] ?? null;
+  // Leaderboard
+  const userMap = Object.fromEntries((usersRes.data ?? []).map((u) => [u.id, u]));
+  const jornadaMap = Object.fromEntries((jornadaRes.data ?? []).map((r) => [r.user_id, r.total_points]));
+  const bracketMap = Object.fromEntries((bracketRes.data ?? []).map((r) => [r.user_id, r.total_points]));
 
-  if (firstLeague) {
-    const { data: rawMembers } = await supabase
-      .from("league_members")
-      .select("user_id, role")
-      .eq("league_id", firstLeague.id) as unknown as { data: MemberRow[] | null };
-
-    const members = rawMembers ?? [];
-    const memberIds = members.map((m) => m.user_id);
-
-    if (memberIds.length > 0) {
-      const [usersRes, jornadaRes, bracketRes] = await Promise.all([
-        supabase.from("users").select("id, name, avatar_url").in("id", memberIds) as unknown as Promise<{ data: UserRow[] | null }>,
-        supabase.from("leaderboard_jornada").select("user_id, total_points").is("league_id", null).in("user_id", memberIds) as unknown as Promise<{ data: PtsRow[] | null }>,
-        supabase.from("leaderboard_bracket").select("user_id, total_points").is("league_id", null).in("user_id", memberIds) as unknown as Promise<{ data: PtsRow[] | null }>,
-      ]);
-
-      const userMap = Object.fromEntries((usersRes.data ?? []).map((u) => [u.id, u]));
-      const jornadaMap = Object.fromEntries((jornadaRes.data ?? []).map((r) => [r.user_id, r.total_points]));
-      const bracketMap = Object.fromEntries((bracketRes.data ?? []).map((r) => [r.user_id, r.total_points]));
-
-      leaderboard = members
+  const leaderboard: LeaderboardEntry[] = firstLeague && firstLeagueMemberIds.length > 0
+    ? firstLeagueMembers
         .map((m) => {
           const u = userMap[m.user_id];
           const jornadaPts = jornadaMap[m.user_id] ?? 0;
@@ -151,9 +179,8 @@ export default async function DashboardPage() {
           };
         })
         .sort((a, b) => b.totalPts - a.totalPts || b.jornadaPts - a.jornadaPts)
-        .slice(0, 5);
-    }
-  }
+        .slice(0, 5)
+    : [];
 
   return (
     <div className="space-y-6">

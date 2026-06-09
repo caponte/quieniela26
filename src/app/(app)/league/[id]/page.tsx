@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import LeagueActions from "./LeagueActions"
 import { Breadcrumb } from "@/components/Breadcrumb"
+import { BRACKET_LOCK_TIME } from "@/lib/utils/bracket"
 
 interface LeagueRow {
   id: string
@@ -33,6 +34,16 @@ interface UserRow {
   avatar_url: string | null
 }
 
+interface TodayMatch {
+  id: string
+  match_number: number
+  stage: string
+  group_name: string | null
+  match_date: string
+  home_team: { name: string; fifa_code: string } | null
+  away_team: { name: string; fifa_code: string } | null
+}
+
 interface Props {
   params: Promise<{ id: string }>
 }
@@ -43,6 +54,8 @@ export default async function LeagueDetailPage({ params }: Props) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
+
+  const isBracketLocked = Date.now() >= BRACKET_LOCK_TIME.getTime()
 
   // League info
   const { data: rawLeague } = await supabase
@@ -62,14 +75,19 @@ export default async function LeagueDetailPage({ params }: Props) {
   const members = rawMembers ?? []
   const memberIds = members.map((m) => m.user_id)
 
-  // Check if current user is a member
   const myMembership = members.find((m) => m.user_id === user.id)
   if (!myMembership) notFound()
 
   const isOwner = myMembership.role === "owner"
 
-  // Fetch in parallel: user profiles + jornada points + bracket points
-  const [usersResult, jornadaResult, bracketResult] = await Promise.all([
+  // Today's date bounds (UTC)
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+  const todayEnd = new Date(todayStart)
+  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1)
+
+  // Parallel: leaderboard data + bracket status + today's matches
+  const [usersResult, jornadaResult, bracketResult, bracketPredsResult, todayMatchesResult] = await Promise.all([
     supabase
       .from("users")
       .select("id, name, avatar_url")
@@ -90,11 +108,32 @@ export default async function LeagueDetailPage({ params }: Props) {
           .is("league_id", null)
           .in("user_id", memberIds) as unknown as Promise<{ data: BracketRow[] | null }>)
       : Promise.resolve({ data: [] as BracketRow[] }),
+
+    memberIds.length > 0
+      ? (supabase
+          .from("bracket_predictions")
+          .select("user_id")
+          .in("user_id", memberIds)
+          .is("league_id", null) as unknown as Promise<{ data: { user_id: string }[] | null }>)
+      : Promise.resolve({ data: [] as { user_id: string }[] }),
+
+    supabase
+      .from("matches")
+      .select(`id, match_number, stage, group_name, match_date,
+        home_team:teams!matches_home_team_id_fkey(name, fifa_code),
+        away_team:teams!matches_away_team_id_fkey(name, fifa_code)`)
+      .gte("match_date", todayStart.toISOString())
+      .lt("match_date", todayEnd.toISOString())
+      .not("status", "eq", "finished")
+      .order("match_date") as unknown as Promise<{ data: TodayMatch[] | null }>,
   ])
 
   const userMap = Object.fromEntries((usersResult.data ?? []).map((u) => [u.id, u]))
   const jornadaMap = Object.fromEntries((jornadaResult.data ?? []).map((r) => [r.user_id, r.total_points]))
   const bracketMap = Object.fromEntries((bracketResult.data ?? []).map((r) => [r.user_id, r.total_points]))
+  const bracketPredictors = new Set((bracketPredsResult.data ?? []).map((r) => r.user_id))
+  const todayMatches = todayMatchesResult.data ?? []
+  const todayMatchIds = todayMatches.map((m) => m.id)
 
   const rows = members
     .map((m) => {
@@ -109,9 +148,31 @@ export default async function LeagueDetailPage({ params }: Props) {
         jornadaPts: jornada,
         bracketPts: bracket,
         totalPts: jornada + bracket,
+        hasBracket: bracketPredictors.has(m.user_id),
       }
     })
     .sort((a, b) => b.totalPts - a.totalPts || b.jornadaPts - a.jornadaPts)
+
+  // Today's match predictions per member
+  let todayPredByMatch: Record<string, Set<string>> = {}
+  if (todayMatchIds.length > 0 && memberIds.length > 0) {
+    const { data: todayPreds } = await supabase
+      .from("match_predictions")
+      .select("match_id, user_id")
+      .in("match_id", todayMatchIds)
+      .in("user_id", memberIds)
+      .is("league_id", null) as unknown as { data: { match_id: string; user_id: string }[] | null }
+
+    for (const p of todayPreds ?? []) {
+      if (!todayPredByMatch[p.match_id]) todayPredByMatch[p.match_id] = new Set()
+      todayPredByMatch[p.match_id].add(p.user_id)
+    }
+  }
+
+  // Members missing bracket
+  const missingBracket = rows.filter((r) => !r.hasBracket)
+  // Members who submitted bracket
+  const hasBracketCount = rows.filter((r) => r.hasBracket).length
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -139,7 +200,6 @@ export default async function LeagueDetailPage({ params }: Props) {
 
       {/* Leaderboard */}
       <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
-        {/* Table header */}
         <div className="grid grid-cols-[2rem_1fr_5rem_5rem_5rem] gap-2 px-4 py-2 border-b border-(--color-border)">
           <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">#</span>
           <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">Jugador</span>
@@ -179,12 +239,24 @@ export default async function LeagueDetailPage({ params }: Props) {
                     {row.name[0]?.toUpperCase() ?? "?"}
                   </div>
                 )}
-                <span className={`text-sm truncate ${isMe ? "font-semibold text-(--color-accent)" : ""}`}>
-                  {row.name}{isMe && " (tú)"}
-                </span>
-                {row.role === "owner" && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/8 text-(--color-muted) shrink-0">owner</span>
-                )}
+                <div className="flex flex-col min-w-0">
+                  <span className={`text-sm truncate ${isMe ? "font-semibold text-(--color-accent)" : ""}`}>
+                    {row.name}{isMe && " (tú)"}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {row.role === "owner" && (
+                      <span className="text-[10px] text-(--color-muted)">owner</span>
+                    )}
+                    {isBracketLocked && (
+                      <Link
+                        href={`/league/${rawLeague.id}/bracket/${row.userId}`}
+                        className="text-[10px] text-(--color-muted) hover:text-white underline-offset-2 hover:underline transition-colors"
+                      >
+                        ver bracket
+                      </Link>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Points */}
@@ -196,6 +268,91 @@ export default async function LeagueDetailPage({ params }: Props) {
             </div>
           )
         })}
+      </div>
+
+      {/* Pendientes section */}
+      <div className="mt-8 space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-(--color-muted)">Pendientes</h2>
+
+        {/* Bracket status */}
+        <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">Bracket</span>
+            <span className={`text-xs font-semibold tabular-nums ${
+              hasBracketCount === members.length ? "text-emerald-400" : "text-amber-400"
+            }`}>
+              {hasBracketCount}/{members.length} enviados
+            </span>
+          </div>
+          {missingBracket.length === 0 ? (
+            <p className="text-xs text-emerald-400">Todos han enviado su bracket.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {missingBracket.map((r) => (
+                <div key={r.userId} className="flex items-center gap-1.5 bg-white/5 rounded-lg px-2.5 py-1.5">
+                  {r.avatarUrl ? (
+                    <Image src={r.avatarUrl} alt={r.name} width={18} height={18} className="rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-[9px] font-bold">
+                      {r.name[0]?.toUpperCase() ?? "?"}
+                    </div>
+                  )}
+                  <span className="text-xs text-(--color-muted)">{r.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Today's match predictions */}
+        {todayMatches.length > 0 ? (
+          <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4 space-y-3">
+            <span className="text-sm font-medium">Partidos de hoy</span>
+            {todayMatches.map((match) => {
+              const predicted = todayPredByMatch[match.id] ?? new Set<string>()
+              const missing = rows.filter((r) => !predicted.has(r.userId))
+              const predictedCount = rows.length - missing.length
+              return (
+                <div key={match.id} className="pt-3 border-t border-(--color-border)/50 first:border-0 first:pt-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium">
+                      {match.home_team?.fifa_code ?? "?"} vs {match.away_team?.fifa_code ?? "?"}{" "}
+                      <span className="text-(--color-muted) font-normal">· M{match.match_number}</span>
+                    </span>
+                    <span className={`text-xs font-semibold tabular-nums ${
+                      predictedCount === members.length ? "text-emerald-400" : "text-amber-400"
+                    }`}>
+                      {predictedCount}/{members.length}
+                    </span>
+                  </div>
+                  {missing.length === 0 ? (
+                    <p className="text-xs text-emerald-400">Todos han predicho este partido.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {missing.map((r) => (
+                        <div key={r.userId} className="flex items-center gap-1 bg-white/5 rounded-lg px-2 py-1">
+                          {r.avatarUrl ? (
+                            <Image src={r.avatarUrl} alt={r.name} width={16} height={16} className="rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="w-3.5 h-3.5 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-[8px] font-bold">
+                              {r.name[0]?.toUpperCase() ?? "?"}
+                            </div>
+                          )}
+                          <span className="text-[11px] text-(--color-muted)">{r.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+            <span className="text-sm font-medium block mb-1">Partidos de hoy</span>
+            <p className="text-xs text-(--color-muted)">No hay partidos programados para hoy.</p>
+          </div>
+        )}
       </div>
 
       {/* Owner: kick members */}

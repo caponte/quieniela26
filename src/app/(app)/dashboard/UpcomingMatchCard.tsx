@@ -30,6 +30,7 @@ export interface MatchCardData {
     first_goal_scorer: string | null
   } | null
   jornadaSlug: string
+  leagueStats: { predicted: number; total: number } | null
 }
 
 function formatDate(iso: string) {
@@ -100,6 +101,12 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
             <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400/80">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 inline-block" />
               Sin predecir
+            </span>
+          )}
+          {/* League prediction count */}
+          {match.leagueStats && (
+            <span className="text-[9px] text-(--color-muted) tabular-nums leading-tight">
+              {match.leagueStats.predicted}/{match.leagueStats.total} en liga
             </span>
           )}
         </div>
