@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import LeagueActions from "./LeagueActions"
+import { Breadcrumb } from "@/components/Breadcrumb"
 
 interface LeagueRow {
   id: string
@@ -114,13 +115,11 @@ export default async function LeagueDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      {/* Back link */}
-      <Link href="/league" className="text-sm text-(--color-muted) hover:text-white transition flex items-center gap-1 mb-8">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Mis ligas
-      </Link>
+      <Breadcrumb crumbs={[
+        { label: "Inicio", href: "/dashboard" },
+        { label: "Mis ligas", href: "/league" },
+        { label: rawLeague.name },
+      ]} />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-8">

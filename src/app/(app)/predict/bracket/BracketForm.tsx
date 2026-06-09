@@ -9,6 +9,7 @@ import {
   type TeamInfo,
   type BracketPredictionData,
 } from "@/lib/utils/bracket"
+import { BracketCountdown } from "@/components/BracketCountdown"
 
 // ── Layout ──────────────────────────────────────────────────────────────────
 
@@ -639,8 +640,9 @@ export function BracketForm({ teams, existing, locked }: Props) {
         <div>
           <h1 className="text-2xl font-bold">Modo Bracket</h1>
           <p className="text-xs text-(--color-muted) mt-1">
-            Predice la fase eliminatoria completa. Se bloquea el 11 jun 14:50 UTC.
+            Predice la fase eliminatoria completa.
           </p>
+          {!locked && <div className="mt-2"><BracketCountdown variant="compact" /></div>}
         </div>
         {!locked && (
           <button

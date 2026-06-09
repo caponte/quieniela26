@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed-fixture.ts",
-    "map-fixtures": "tsx scripts/map-api-fixtures.ts"
+    "map-fixtures": "tsx scripts/map-api-fixtures.ts",
+    "gen-prediction-data": "tsx scripts/generate-prediction-data.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

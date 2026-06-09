@@ -8,6 +8,7 @@ import {
 import type { JornadaSlug } from "@/lib/utils/jornada"
 import MatchdayForm from "./MatchdayForm"
 import type { MatchWithTeams, MatchPredictionRow, PlayerRow } from "@/lib/utils/matchTypes"
+import { Breadcrumb } from "@/components/Breadcrumb"
 
 interface Props {
   params: Promise<{ jornada: string }>
@@ -80,12 +81,21 @@ export default async function JornadaPage({ params }: Props) {
   )
 
   return (
-    <MatchdayForm
-      slug={slug}
-      label={info.label}
-      matches={rawMatches}
-      predictionsByMatchId={predictionsByMatchId}
-      players={rawPlayers ?? []}
-    />
+    <>
+      <div className="max-w-lg mx-auto px-4 pt-6">
+        <Breadcrumb crumbs={[
+          { label: "Inicio", href: "/dashboard" },
+          { label: "Modo Jornada", href: "/predict/match" },
+          { label: info.label },
+        ]} />
+      </div>
+      <MatchdayForm
+        slug={slug}
+        label={info.label}
+        matches={rawMatches}
+        predictionsByMatchId={predictionsByMatchId}
+        players={rawPlayers ?? []}
+      />
+    </>
   )
 }

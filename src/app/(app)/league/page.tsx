@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { Breadcrumb } from "@/components/Breadcrumb"
 
 interface LeagueRow {
   league_id: string
@@ -23,6 +24,10 @@ export default async function LeaguesOverviewPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
+      <Breadcrumb crumbs={[
+        { label: "Inicio", href: "/dashboard" },
+        { label: "Mis ligas" },
+      ]} />
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold">Mis ligas</h1>
@@ -74,7 +79,7 @@ export default async function LeaguesOverviewPage() {
               <Link
                 key={league.id}
                 href={`/league/${league.id}`}
-                className="flex items-center justify-between bg-(--color-surface) border border-(--color-border) rounded-xl px-4 py-4 hover:border-(--color-accent)/40 hover:bg-white/3 transition group"
+                className="flex items-center justify-between bg-(--color-surface) border border-(--color-border) rounded-xl px-4 py-4 hover:border-accent/40 hover:bg-white/3 transition group"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-accent/15 flex items-center justify-center text-base">

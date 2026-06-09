@@ -2,6 +2,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { JORNADA_SLUGS, JORNADA_INFO, JORNADA_DATE_BOUNDS, isMatchLocked } from "@/lib/utils/jornada"
 import type { JornadaSlug } from "@/lib/utils/jornada"
+import { Breadcrumb } from "@/components/Breadcrumb"
 
 interface MatchRow { id: string; match_date: string; stage: string }
 interface PredRow { match_id: string }
@@ -56,6 +57,10 @@ export default async function MatchOverviewPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
+      <Breadcrumb crumbs={[
+        { label: "Inicio", href: "/dashboard" },
+        { label: "Modo Jornada" },
+      ]} />
       <h1 className="text-2xl font-bold mb-1">Modo Jornada</h1>
       <p className="text-(--color-muted) mb-8 text-sm">
         Predice el resultado de cada partido antes de que empiece.

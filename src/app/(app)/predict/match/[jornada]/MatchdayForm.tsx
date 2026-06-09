@@ -2,7 +2,6 @@
 
 import { useState, useTransition, useMemo } from "react"
 import Image from "next/image"
-import Link from "next/link"
 import { saveMatchPrediction } from "@/lib/actions/match"
 import { isMatchLocked } from "@/lib/utils/jornada"
 import type { JornadaSlug } from "@/lib/utils/jornada"
@@ -139,20 +138,11 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <Link
-          href="/predict/match"
-          className="flex flex-col items-center gap-0.5 group"
-        >
-          <span className="text-xs text-(--color-muted) group-hover:text-white transition-colors flex items-center gap-1">
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Jornadas
-          </span>
+        <div className="flex flex-col items-center gap-0.5">
           <span className="text-sm font-medium text-white">
             {label} · Partido {current + 1} de {matches.length}
           </span>
-        </Link>
+        </div>
         <button
           onClick={() => current < matches.length - 1 && goTo(current + 1)}
           disabled={current >= matches.length - 1}
