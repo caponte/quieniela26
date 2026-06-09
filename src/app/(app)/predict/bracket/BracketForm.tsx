@@ -681,6 +681,7 @@ export function BracketForm({ teams, existing, locked }: Props) {
       )}
 
       {/* Bracket */}
+      <div className="relative">
       <div className="overflow-x-auto -mx-4 px-4">
         <div
           ref={bracketRef}
@@ -804,6 +805,10 @@ export function BracketForm({ teams, existing, locked }: Props) {
           )}
         </div>
       </div>
+      {/* Scroll hint fade — mobile only */}
+      <div className="md:hidden pointer-events-none absolute inset-y-0 right-0 w-10 bg-linear-to-l from-(--color-background) to-transparent" />
+      </div>
+      <p className="md:hidden text-center text-[11px] text-(--color-muted) mt-1">← desliza para ver todas las rondas →</p>
 
       {/* 3rd place match */}
       <div className="mt-2">

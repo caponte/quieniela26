@@ -200,12 +200,16 @@ export default async function LeagueDetailPage({ params }: Props) {
 
       {/* Leaderboard */}
       <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[2rem_1fr_5rem_5rem_5rem] gap-2 px-4 py-2 border-b border-(--color-border)">
+        <div className="grid grid-cols-[1.25rem_1fr_3rem_3rem_3rem] sm:grid-cols-[2rem_1fr_5rem_5rem_5rem] gap-1 sm:gap-2 px-3 sm:px-4 py-2 border-b border-(--color-border)">
           <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">#</span>
           <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">Jugador</span>
-          <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">Jornada</span>
-          <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">Bracket</span>
-          <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">Total</span>
+          <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">
+            <span className="sm:hidden">Jor.</span><span className="hidden sm:inline">Jornada</span>
+          </span>
+          <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">
+            <span className="sm:hidden">Brk.</span><span className="hidden sm:inline">Bracket</span>
+          </span>
+          <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">Tot.</span>
         </div>
 
         {rows.map((row, i) => {
@@ -213,34 +217,34 @@ export default async function LeagueDetailPage({ params }: Props) {
           return (
             <div
               key={row.userId}
-              className={`grid grid-cols-[2rem_1fr_5rem_5rem_5rem] gap-2 px-4 py-3 items-center border-b border-(--color-border)/50 last:border-0 ${
+              className={`grid grid-cols-[1.25rem_1fr_3rem_3rem_3rem] sm:grid-cols-[2rem_1fr_5rem_5rem_5rem] gap-1 sm:gap-2 px-3 sm:px-4 py-3 items-center border-b border-(--color-border)/50 last:border-0 ${
                 isMe ? "bg-accent/5" : ""
               }`}
             >
               {/* Rank */}
-              <span className={`text-sm font-bold tabular-nums ${
+              <span className={`text-xs sm:text-sm font-bold tabular-nums ${
                 i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-(--color-muted)"
               }`}>
                 {i + 1}
               </span>
 
               {/* Player */}
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 {row.avatarUrl ? (
                   <Image
                     src={row.avatarUrl}
                     alt={row.name}
                     width={28}
                     height={28}
-                    className="rounded-full shrink-0 object-cover"
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full shrink-0 object-cover"
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-xs font-bold">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-xs font-bold">
                     {row.name[0]?.toUpperCase() ?? "?"}
                   </div>
                 )}
                 <div className="flex flex-col min-w-0">
-                  <span className={`text-sm truncate ${isMe ? "font-semibold text-(--color-accent)" : ""}`}>
+                  <span className={`text-xs sm:text-sm truncate ${isMe ? "font-semibold text-(--color-accent)" : ""}`}>
                     {row.name}{isMe && " (tú)"}
                   </span>
                   <div className="flex items-center gap-2">
@@ -260,9 +264,9 @@ export default async function LeagueDetailPage({ params }: Props) {
               </div>
 
               {/* Points */}
-              <span className="text-sm tabular-nums text-right text-(--color-muted)">{row.jornadaPts}</span>
-              <span className="text-sm tabular-nums text-right text-(--color-muted)">{row.bracketPts}</span>
-              <span className={`text-sm tabular-nums text-right font-semibold ${isMe ? "text-(--color-accent)" : "text-white"}`}>
+              <span className="text-xs sm:text-sm tabular-nums text-right text-(--color-muted)">{row.jornadaPts}</span>
+              <span className="text-xs sm:text-sm tabular-nums text-right text-(--color-muted)">{row.bracketPts}</span>
+              <span className={`text-xs sm:text-sm tabular-nums text-right font-semibold ${isMe ? "text-(--color-accent)" : "text-white"}`}>
                 {row.totalPts}
               </span>
             </div>
