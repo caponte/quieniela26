@@ -1,10 +1,10 @@
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { JORNADA_SLUGS, JORNADA_INFO, JORNADA_DATE_BOUNDS, isMatchLocked } from "@/lib/utils/jornada"
+import { JORNADA_SLUGS, JORNADA_INFO, getGroupRoundMatchIds, isMatchLocked } from "@/lib/utils/jornada"
 import type { JornadaSlug } from "@/lib/utils/jornada"
 import { Breadcrumb } from "@/components/Breadcrumb"
 
-interface MatchRow { id: string; match_date: string; stage: string }
+interface MatchRow { id: string; match_date: string; stage: string; group_name: string | null }
 interface PredRow { match_id: string }
 
 interface JornadaSummary {
@@ -20,7 +20,7 @@ export default async function MatchOverviewPage() {
 
   const { data: rawMatches } = await supabase
     .from("matches")
-    .select("id, match_date, stage")
+    .select("id, match_date, stage, group_name")
     .order("match_date", { ascending: true }) as unknown as { data: MatchRow[] | null }
 
   const { data: rawPredictions } = user ? await supabase
@@ -33,18 +33,20 @@ export default async function MatchOverviewPage() {
   const matches = rawMatches ?? []
   const predictedSet = new Set((rawPredictions ?? []).map((p) => p.match_id))
 
+  const groupMatches = matches.filter((m) => m.stage === "group")
+  const groupRoundIds: Record<"j1" | "j2" | "j3", Set<string>> = {
+    j1: getGroupRoundMatchIds(groupMatches, 1),
+    j2: getGroupRoundMatchIds(groupMatches, 2),
+    j3: getGroupRoundMatchIds(groupMatches, 3),
+  }
+
   const summaries: JornadaSummary[] = JORNADA_SLUGS.map((slug) => {
     const info = JORNADA_INFO[slug]
     let jornadaMatches = matches
 
     if (info.isGroup) {
-      const bounds = JORNADA_DATE_BOUNDS[slug as "j1" | "j2" | "j3"]
-      jornadaMatches = jornadaMatches.filter((m) => {
-        const d = new Date(m.match_date)
-        if (bounds.from && d < bounds.from) return false
-        if (bounds.to && d >= bounds.to) return false
-        return m.stage === "group"
-      })
+      const ids = groupRoundIds[slug as "j1" | "j2" | "j3"]
+      jornadaMatches = jornadaMatches.filter((m) => ids.has(m.id))
     } else {
       jornadaMatches = jornadaMatches.filter((m) => m.stage === info.stage)
     }

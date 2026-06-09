@@ -5,7 +5,7 @@ import bracketImg from "@/assets/img/brackets.png";
 import predictImg from "@/assets/img/predict.png";
 import UpcomingMatchCard from "./UpcomingMatchCard";
 import type { MatchCardData } from "./UpcomingMatchCard";
-import { JORNADA_DATE_BOUNDS } from "@/lib/utils/jornada";
+import { getGroupRoundMatchIds } from "@/lib/utils/jornada";
 import { BracketCountdown } from "@/components/BracketCountdown";
 import { BRACKET_LOCK_TIME } from "@/lib/utils/bracket";
 
@@ -46,7 +46,7 @@ interface LeaderboardEntry {
   isMe: boolean;
 }
 
-function jornadaSlugForMatch(match: MatchRow): string {
+function jornadaSlugForMatch(match: MatchRow, roundIdSets: { j1: Set<string>; j2: Set<string>; j3: Set<string> }): string {
   if (match.stage !== "group") {
     const map: Record<string, string> = {
       round_of_32: "r32", round_of_16: "r16",
@@ -55,9 +55,8 @@ function jornadaSlugForMatch(match: MatchRow): string {
     };
     return map[match.stage] ?? "j1";
   }
-  const d = new Date(match.match_date);
-  if (d >= JORNADA_DATE_BOUNDS.j3.from!) return "j3";
-  if (d >= JORNADA_DATE_BOUNDS.j2.from!) return "j2";
+  if (roundIdSets.j3.has(match.id)) return "j3";
+  if (roundIdSets.j2.has(match.id)) return "j2";
   return "j1";
 }
 
@@ -66,7 +65,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Step 1: core data in parallel
-  const [profileResult, matchesResult, leaguesResult] = await Promise.all([
+  const [profileResult, matchesResult, leaguesResult, groupMatchesResult] = await Promise.all([
     supabase.from("users").select("name").eq("id", user!.id).single(),
 
     supabase
@@ -85,11 +84,23 @@ export default async function DashboardPage() {
       .select("league:leagues(id, name, invite_code)")
       .eq("user_id", user!.id)
       .limit(5),
+
+    supabase
+      .from("matches")
+      .select("id, match_date, group_name")
+      .eq("stage", "group") as unknown as Promise<{ data: { id: string; match_date: string; group_name: string | null }[] | null }>,
   ]);
 
   const profile = profileResult.data as { name: string } | null;
   const matches = matchesResult.data ?? [];
   const matchIds = matches.map((m) => m.id);
+
+  const allGroupMatches = groupMatchesResult.data ?? [];
+  const groupRoundIds = {
+    j1: getGroupRoundMatchIds(allGroupMatches, 1),
+    j2: getGroupRoundMatchIds(allGroupMatches, 2),
+    j3: getGroupRoundMatchIds(allGroupMatches, 3),
+  };
 
   const rawLeagues = (leaguesResult.data ?? []) as unknown as { league: LeagueRow | null }[];
   const leagues = rawLeagues.filter((l) => l.league !== null).map((l) => l.league!);
@@ -151,7 +162,7 @@ export default async function DashboardPage() {
   const matchCards: MatchCardData[] = matches.map((m) => ({
     ...m,
     prediction: predByMatchId[m.id] ?? null,
-    jornadaSlug: jornadaSlugForMatch(m),
+    jornadaSlug: jornadaSlugForMatch(m, groupRoundIds),
     leagueStats: firstLeagueMemberIds.length > 0
       ? { predicted: leaguePredCounts[m.id] ?? 0, total: firstLeagueMemberIds.length }
       : null,

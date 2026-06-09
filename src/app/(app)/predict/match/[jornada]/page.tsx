@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import {
   JORNADA_INFO,
-  JORNADA_DATE_BOUNDS,
+  getGroupRoundMatchIds,
   isValidJornadaSlug,
 } from "@/lib/utils/jornada"
 import type { JornadaSlug } from "@/lib/utils/jornada"
@@ -26,26 +26,48 @@ export default async function JornadaPage({ params }: Props) {
   if (!user) redirect("/login")
 
   // Build query for this jornada's matches
-  let query = supabase
-    .from("matches")
-    .select(`
-      id, match_date, stage, match_number, group_name, home_score, away_score, status,
-      home_team:home_team_id ( id, name, fifa_code, flag_url ),
-      away_team:away_team_id ( id, name, fifa_code, flag_url )
-    `)
-    .order("match_date", { ascending: true })
-    .order("match_number", { ascending: true })
+  let rawMatches: MatchWithTeams[] | null = null
 
   if (info.isGroup) {
-    const bounds = JORNADA_DATE_BOUNDS[slug as "j1" | "j2" | "j3"]
-    query = query.eq("stage", "group")
-    if (bounds.from) query = query.gte("match_date", bounds.from.toISOString())
-    if (bounds.to) query = query.lt("match_date", bounds.to.toISOString())
-  } else {
-    query = query.eq("stage", info.stage!)
-  }
+    const round = slug === "j1" ? 1 : slug === "j2" ? 2 : 3
 
-  const { data: rawMatches } = await query as unknown as { data: MatchWithTeams[] | null }
+    // Fetch all group matches to derive round membership by group
+    const { data: allGroupMatches } = await supabase
+      .from("matches")
+      .select("id, match_date, group_name")
+      .eq("stage", "group") as unknown as { data: { id: string; match_date: string; group_name: string | null }[] | null }
+
+    const roundIds = getGroupRoundMatchIds(allGroupMatches ?? [], round as 1 | 2 | 3)
+    const ids = Array.from(roundIds)
+
+    if (ids.length === 0) {
+      rawMatches = []
+    } else {
+      const { data } = await supabase
+        .from("matches")
+        .select(`
+          id, match_date, stage, match_number, group_name, home_score, away_score, status,
+          home_team:home_team_id ( id, name, fifa_code, flag_url ),
+          away_team:away_team_id ( id, name, fifa_code, flag_url )
+        `)
+        .in("id", ids)
+        .order("match_date", { ascending: true })
+        .order("match_number", { ascending: true }) as unknown as { data: MatchWithTeams[] | null }
+      rawMatches = data
+    }
+  } else {
+    const { data } = await supabase
+      .from("matches")
+      .select(`
+        id, match_date, stage, match_number, group_name, home_score, away_score, status,
+        home_team:home_team_id ( id, name, fifa_code, flag_url ),
+        away_team:away_team_id ( id, name, fifa_code, flag_url )
+      `)
+      .eq("stage", info.stage!)
+      .order("match_date", { ascending: true })
+      .order("match_number", { ascending: true }) as unknown as { data: MatchWithTeams[] | null }
+    rawMatches = data
+  }
 
   if (!rawMatches || rawMatches.length === 0) {
     return (

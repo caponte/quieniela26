@@ -9,7 +9,7 @@ export interface JornadaInfo {
   label: string
   shortLabel: string
   isGroup: boolean
-  stage: MatchStage | null  // null for group jornadas (filtered by date)
+  stage: MatchStage | null  // null for group jornadas (filtered by round within group)
 }
 
 export const JORNADA_INFO: Record<JornadaSlug, JornadaInfo> = {
@@ -23,13 +23,26 @@ export const JORNADA_INFO: Record<JornadaSlug, JornadaInfo> = {
   final: { slug: "final", label: "Gran Final", shortLabel: "Final", isGroup: false, stage: "final" },
 }
 
-// Jornada 1: group matches with match_date < Jun 18
-// Jornada 2: group matches >= Jun 18 and < Jun 25
-// Jornada 3: group matches >= Jun 25
-export const JORNADA_DATE_BOUNDS: Record<"j1" | "j2" | "j3", { from?: Date; to?: Date }> = {
-  j1: { to: new Date("2026-06-18T00:00:00Z") },
-  j2: { from: new Date("2026-06-18T00:00:00Z"), to: new Date("2026-06-25T00:00:00Z") },
-  j3: { from: new Date("2026-06-25T00:00:00Z") },
+// Returns the IDs of group matches belonging to a given round (1, 2, or 3).
+// Within each group, matches are sorted by date; the first 2 = round 1, next 2 = round 2, last 2 = round 3.
+export function getGroupRoundMatchIds(
+  groupMatches: { id: string; match_date: string; group_name: string | null }[],
+  round: 1 | 2 | 3
+): Set<string> {
+  const byGroup = new Map<string, typeof groupMatches>()
+  for (const m of groupMatches) {
+    const g = m.group_name ?? "__unknown__"
+    if (!byGroup.has(g)) byGroup.set(g, [])
+    byGroup.get(g)!.push(m)
+  }
+
+  const ids = new Set<string>()
+  for (const matches of byGroup.values()) {
+    const sorted = [...matches].sort((a, b) => a.match_date.localeCompare(b.match_date))
+    const slice = sorted.slice((round - 1) * 2, round * 2)
+    for (const m of slice) ids.add(m.id)
+  }
+  return ids
 }
 
 // A jornada unlocks when its first match kicks off (minus 10-min buffer for safety).
