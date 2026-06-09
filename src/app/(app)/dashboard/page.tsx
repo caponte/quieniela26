@@ -148,28 +148,34 @@ export default async function DashboardPage() {
           .from("match_predictions")
           .select("match_id, user_id")
           .in("match_id", matchIds)
-          .in("user_id", firstLeagueMemberIds)
-          .is("league_id", null) as unknown as Promise<{ data: { match_id: string; user_id: string }[] | null }>
+          .in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: { match_id: string; user_id: string }[] | null }>
+
       : Promise.resolve({ data: [] as { match_id: string; user_id: string }[] }),
   ]);
 
-  // League pred counts per match
-  const leaguePredCounts: Record<string, number> = {};
+  const userMap = Object.fromEntries((usersRes.data ?? []).map((u) => [u.id, u]));
+
+  // League predictors per match (deduplicated by user_id — NULL unique constraint doesn't hold in Postgres)
+  const leaguePredsPerMatch: Record<string, { name: string; avatarUrl: string | null }[]> = {};
+  const seenPred = new Set<string>();
   for (const p of leaguePredsRes.data ?? []) {
-    leaguePredCounts[p.match_id] = (leaguePredCounts[p.match_id] ?? 0) + 1;
+    const key = `${p.match_id}:${p.user_id}`;
+    if (seenPred.has(key)) continue;
+    seenPred.add(key);
+    if (!leaguePredsPerMatch[p.match_id]) leaguePredsPerMatch[p.match_id] = [];
+    const u = userMap[p.user_id];
+    if (u) leaguePredsPerMatch[p.match_id].push({ name: u.name, avatarUrl: u.avatar_url });
   }
 
   const matchCards: MatchCardData[] = matches.map((m) => ({
     ...m,
     prediction: predByMatchId[m.id] ?? null,
     jornadaSlug: jornadaSlugForMatch(m, groupRoundIds),
-    leagueStats: firstLeagueMemberIds.length > 0
-      ? { predicted: leaguePredCounts[m.id] ?? 0, total: firstLeagueMemberIds.length }
-      : null,
+    leaguePredictors: firstLeagueMemberIds.length > 0 ? (leaguePredsPerMatch[m.id] ?? []) : null,
+    leagueTotal: firstLeagueMemberIds.length > 0 ? firstLeagueMemberIds.length : null,
   }));
 
   // Leaderboard
-  const userMap = Object.fromEntries((usersRes.data ?? []).map((u) => [u.id, u]));
   const jornadaMap = Object.fromEntries((jornadaRes.data ?? []).map((r) => [r.user_id, r.total_points]));
   const bracketMap = Object.fromEntries((bracketRes.data ?? []).map((r) => [r.user_id, r.total_points]));
 

@@ -30,7 +30,8 @@ export interface MatchCardData {
     first_goal_scorer: string | null
   } | null
   jornadaSlug: string
-  leagueStats: { predicted: number; total: number } | null
+  leaguePredictors: { name: string; avatarUrl: string | null }[] | null
+  leagueTotal: number | null
 }
 
 function formatDate(iso: string) {
@@ -103,11 +104,33 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
               Sin predecir
             </span>
           )}
-          {/* League prediction count */}
-          {match.leagueStats && (
-            <span className="text-[9px] text-(--color-muted) tabular-nums leading-tight">
-              {match.leagueStats.predicted}/{match.leagueStats.total} en liga
-            </span>
+          {/* League predictors avatars */}
+          {match.leaguePredictors !== null && match.leagueTotal !== null && (
+            <div className="flex items-center justify-center gap-1 mt-0.5">
+              {match.leaguePredictors.length > 0 && (
+                <div className="flex -space-x-1">
+                  {match.leaguePredictors.slice(0, 5).map((u, i) =>
+                    u.avatarUrl ? (
+                      <img key={i} src={u.avatarUrl} alt={u.name} title={u.name}
+                        className="w-4 h-4 rounded-full border border-(--color-background) object-cover shrink-0" />
+                    ) : (
+                      <div key={i} title={u.name}
+                        className="w-4 h-4 rounded-full border border-(--color-background) bg-white/10 flex items-center justify-center text-[7px] font-bold shrink-0">
+                        {u.name[0]?.toUpperCase() ?? "?"}
+                      </div>
+                    )
+                  )}
+                  {match.leaguePredictors.length > 5 && (
+                    <div className="w-4 h-4 rounded-full border border-(--color-background) bg-white/10 flex items-center justify-center text-[7px] font-bold text-(--color-muted) shrink-0">
+                      +{match.leaguePredictors.length - 5}
+                    </div>
+                  )}
+                </div>
+              )}
+              <span className="text-[9px] text-(--color-muted) tabular-nums">
+                {match.leaguePredictors.length}/{match.leagueTotal}
+              </span>
+            </div>
           )}
         </div>
 
