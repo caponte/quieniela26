@@ -88,15 +88,21 @@ export default async function JornadaPage({ params }: Props) {
     .is("league_id", null)
     .in("match_id", matchIds) as unknown as { data: MatchPredictionRow[] | null }
 
-  // Fetch players for all teams involved
+  // Fetch players in chunks of 20 teams to stay well under Supabase's 1000-row default limit
   const teamIds = Array.from(
     new Set(rawMatches.flatMap((m) => [m.home_team?.id, m.away_team?.id].filter(Boolean) as string[]))
   )
-  const { data: rawPlayers } = await supabase
-    .from("players")
-    .select("id, name, position, jersey_number, team_id")
-    .in("team_id", teamIds)
-    .order("jersey_number", { ascending: true }) as unknown as { data: PlayerRow[] | null }
+  const CHUNK = 20
+  const playerChunks = await Promise.all(
+    Array.from({ length: Math.ceil(teamIds.length / CHUNK) }, (_, i) =>
+      supabase
+        .from("players")
+        .select("id, name, position, jersey_number, team_id")
+        .in("team_id", teamIds.slice(i * CHUNK, (i + 1) * CHUNK))
+        .order("jersey_number", { ascending: true })
+    )
+  )
+  const rawPlayers = playerChunks.flatMap((r) => (r as unknown as { data: PlayerRow[] | null }).data ?? [])
 
   const predictionsByMatchId = Object.fromEntries(
     (rawPredictions ?? []).map((p) => [p.match_id, p])
