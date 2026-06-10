@@ -43,13 +43,22 @@ function initState(match: Match, pred: Prediction | undefined): MatchState {
   }
 }
 
+const DAYS_ES = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"]
+const MONTHS_ES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
 function formatMatchDate(dateStr: string) {
   const d = new Date(dateStr)
-  return d.toLocaleDateString("es-MX", {
-    weekday: "short", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  })
+  const day = DAYS_ES[d.getDay()]
+  const date = d.getDate()
+  const month = MONTHS_ES[d.getMonth()]
+  const hh = String(d.getHours()).padStart(2, "0")
+  const mm = String(d.getMinutes()).padStart(2, "0")
+  return `${day} ${date} ${month}, ${hh}:${mm}`
 }
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const POS_ORDER: Record<string, number> = { FWD: 0, MID: 1, DEF: 2, GK: 3 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
@@ -78,7 +87,14 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
   const matchPlayers = useMemo(() => {
     const homeId = match.home_team?.id
     const awayId = match.away_team?.id
-    return players.filter((p) => p.team_id === homeId || p.team_id === awayId)
+    return players
+      .filter((p) => p.team_id === homeId || p.team_id === awayId)
+      .sort((a, b) => {
+        const posA = POS_ORDER[a.position ?? ""] ?? 4
+        const posB = POS_ORDER[b.position ?? ""] ?? 4
+        if (posA !== posB) return posA - posB
+        return (a.jersey_number ?? 99) - (b.jersey_number ?? 99)
+      })
   }, [match, players])
 
   const filteredPlayers = useMemo(() => {
@@ -269,7 +285,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
                 onChange={(e) => setScorerSearch(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm placeholder:text-(--color-muted) focus:outline-none focus:border-accent/50 disabled:opacity-50"
               />
-              <div className="max-h-48 overflow-y-auto scrollbar-thin flex flex-col gap-1">
+              <div className="max-h-72 overflow-y-auto scrollbar-thin flex flex-col gap-1">
                 <button
                   disabled={locked}
                   onClick={() => updateState({ scorerId: null, scorerName: null })}
@@ -414,6 +430,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+const POSITION_LABEL: Record<string, string> = { FWD: "Delanteros", MID: "Mediocampistas", DEF: "Defensas", GK: "Porteros" }
+
 function ScorerGroup({
   team, players, selectedId, locked, onSelect,
 }: {
@@ -424,6 +442,17 @@ function ScorerGroup({
   onSelect: (p: Player) => void
 }) {
   if (!team || players.length === 0) return null
+
+  const grouped = players.reduce<Record<string, Player[]>>((acc, p) => {
+    const pos = p.position ?? "—"
+    if (!acc[pos]) acc[pos] = []
+    acc[pos].push(p)
+    return acc
+  }, {})
+
+  const posOrder = ["FWD", "MID", "DEF", "GK", "—"]
+  const sortedPositions = posOrder.filter((pos) => grouped[pos]?.length > 0)
+
   return (
     <>
       <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
@@ -432,25 +461,29 @@ function ScorerGroup({
         )}
         <span className="text-xs font-semibold text-(--color-muted) uppercase tracking-wider">{team.name}</span>
       </div>
-      {players.map((p) => (
-        <button
-          key={p.id}
-          disabled={locked}
-          onClick={() => onSelect(p)}
-          className={`text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2 ${
-            selectedId === p.id
-              ? "bg-accent/10 text-(--color-accent)"
-              : "text-(--color-muted) hover:bg-white/5 hover:text-white"
-          } disabled:opacity-50`}
-        >
-          {p.jersey_number !== null && (
-            <span className="text-xs w-5 text-right opacity-60 tabular-nums">{p.jersey_number}</span>
-          )}
-          <span>{p.name}</span>
-          {p.position && (
-            <span className="text-xs opacity-50 ml-auto">{p.position}</span>
-          )}
-        </button>
+      {sortedPositions.map((pos) => (
+        <div key={pos}>
+          <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">
+            {POSITION_LABEL[pos] ?? pos}
+          </p>
+          {grouped[pos].map((p) => (
+            <button
+              key={p.id}
+              disabled={locked}
+              onClick={() => onSelect(p)}
+              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+                selectedId === p.id
+                  ? "bg-accent/10 text-(--color-accent)"
+                  : "text-(--color-muted) hover:bg-white/5 hover:text-white"
+              } disabled:opacity-50`}
+            >
+              {p.jersey_number !== null && (
+                <span className="text-xs w-5 text-right opacity-60 tabular-nums">{p.jersey_number}</span>
+              )}
+              <span>{p.name}</span>
+            </button>
+          ))}
+        </div>
       ))}
     </>
   )

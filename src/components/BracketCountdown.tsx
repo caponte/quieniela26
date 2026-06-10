@@ -20,15 +20,19 @@ function formatParts(ms: number) {
 }
 
 export function BracketCountdown({ variant = "banner" }: { variant?: "banner" | "compact" }) {
-  const [remaining, setRemaining] = useState(getRemaining)
+  const [remaining, setRemaining] = useState<number | null>(null)
 
   useEffect(() => {
-    if (remaining === 0) return
-    const id = setInterval(() => setRemaining(getRemaining()), 1000)
+    setRemaining(getRemaining())
+    const id = setInterval(() => {
+      const r = getRemaining()
+      setRemaining(r)
+      if (r === 0) clearInterval(id)
+    }, 1000)
     return () => clearInterval(id)
-  }, [remaining])
+  }, [])
 
-  if (remaining === 0) return null
+  if (remaining === null || remaining === 0) return null
 
   const { days, hours, mins, secs } = formatParts(remaining)
   const pad = (n: number) => String(n).padStart(2, "0")

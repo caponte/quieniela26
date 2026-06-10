@@ -34,12 +34,17 @@ export interface MatchCardData {
   leagueTotal: number | null
 }
 
+const DAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"]
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
 function formatDate(iso: string) {
   const d = new Date(iso)
-  return d.toLocaleDateString("es-MX", {
-    weekday: "short", day: "numeric", month: "short",
-    hour: "2-digit", minute: "2-digit",
-  })
+  const day = DAYS[d.getDay()]
+  const date = d.getDate()
+  const month = MONTHS[d.getMonth()]
+  const hh = String(d.getHours()).padStart(2, "0")
+  const mm = String(d.getMinutes()).padStart(2, "0")
+  return `${day} ${date} ${month}, ${hh}:${mm}`
 }
 
 export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
