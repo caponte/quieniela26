@@ -200,7 +200,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
               {!isLive && !isFinished && (
                 <div className="px-4 pt-1">
                   <Link
-                    href={`/predict/match/${match.jornadaSlug}`}
+                    href={`/predict/match/${match.jornadaSlug}?match=${match.id}`}
                     className="block text-center text-xs text-(--color-accent) hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -214,7 +214,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
               <p className="text-sm text-(--color-muted) mb-2">Aún no has predicho este partido.</p>
               {!isLive && !isFinished && (
                 <Link
-                  href={`/predict/match/${match.jornadaSlug}`}
+                  href={`/predict/match/${match.jornadaSlug}?match=${match.id}`}
                   className="inline-block text-sm bg-(--color-accent) text-black font-semibold px-4 py-1.5 rounded-lg hover:opacity-90 transition"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -225,7 +225,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
           )}
 
           {/* League predictions table */}
-          {match.leagueFullPreds && match.leagueFullPreds.length > 0 && (
+          {(isLive || isFinished) && match.leagueFullPreds && match.leagueFullPreds.length > 0 && (
             <div className="border-t border-(--color-border)">
               <div className="px-4 pt-3 pb-1">
                 <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">Liga</p>

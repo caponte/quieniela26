@@ -70,13 +70,13 @@ export default async function MemberBracketPage({ params }: Props) {
   const [leagueRes, targetUserRes, bracketRes, teamsRes] = await Promise.all([
     supabase.from("leagues").select("id, name").eq("id", leagueId).maybeSingle() as unknown as Promise<{ data: LeagueRow | null }>,
     supabase.from("users").select("id, name, avatar_url").eq("id", targetUserId).maybeSingle() as unknown as Promise<{ data: UserRow | null }>,
-    supabase.from("bracket_predictions").select("predictions").eq("user_id", targetUserId).is("league_id", null).maybeSingle() as unknown as Promise<{ data: { predictions: BracketPredictionData } | null }>,
+    supabase.from("bracket_predictions").select("predictions").eq("user_id", targetUserId).order("league_id", { nullsFirst: true }).limit(1) as unknown as Promise<{ data: { predictions: BracketPredictionData }[] | null }>,
     supabase.from("teams").select("id, name, flag_url, fifa_code, group_name").order("group_name").order("name") as unknown as Promise<{ data: TeamInfo[] | null }>,
   ])
 
   const league = leagueRes.data
   const targetUser = targetUserRes.data
-  const bracket = bracketRes.data?.predictions ?? null
+  const bracket = (bracketRes.data?.[0])?.predictions ?? null
   const teams = teamsRes.data ?? []
 
   if (!league || !targetUser) notFound()

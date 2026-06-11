@@ -15,10 +15,12 @@ import type { LiveMatchState } from "@/lib/utils/livePoints"
 
 interface Props {
   params: Promise<{ jornada: string }>
+  searchParams: Promise<{ match?: string }>
 }
 
-export default async function JornadaPage({ params }: Props) {
+export default async function JornadaPage({ params, searchParams }: Props) {
   const { jornada } = await params
+  const { match: initialMatchId } = await searchParams
   if (!isValidJornadaSlug(jornada)) notFound()
 
   const slug = jornada as JornadaSlug
@@ -239,6 +241,7 @@ export default async function JornadaPage({ params }: Props) {
         players={rawPlayers ?? []}
         leaguePredsByMatchId={leaguePredsByMatchId}
         matchResultEventsByMatchId={matchResultEventsMap}
+        initialMatchId={initialMatchId}
       />
     </>
   )

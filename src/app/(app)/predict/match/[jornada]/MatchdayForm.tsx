@@ -57,6 +57,7 @@ interface Props {
   players: Player[]
   leaguePredsByMatchId: Record<string, LeagueMemberPred[]>
   matchResultEventsByMatchId: Record<string, MatchResultEvents>
+  initialMatchId?: string
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -91,8 +92,12 @@ const POS_ORDER: Record<string, number> = { FWD: 0, MID: 1, DEF: 2, GK: 3 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId, matchResultEventsByMatchId }: Props) {
-  const [current, setCurrent] = useState(0)
+export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId, matchResultEventsByMatchId, initialMatchId }: Props) {
+  const [current, setCurrent] = useState(() => {
+    if (!initialMatchId) return 0
+    const idx = matches.findIndex((m) => m.id === initialMatchId)
+    return idx >= 0 ? idx : 0
+  })
   const [states, setStates] = useState<MatchState[]>(() =>
     matches.map((m) => initState(m, predictionsByMatchId[m.id]))
   )
