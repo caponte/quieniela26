@@ -3,6 +3,16 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import SyncPanel from "./SyncPanel"
 
+export interface SyncLog {
+  id: string
+  triggered_at: string
+  source: string
+  synced: number | null
+  total: number | null
+  errors: string[] | null
+  payload: object | null
+}
+
 async function checkApi(): Promise<boolean> {
   try {
     const res = await fetch(
@@ -31,10 +41,11 @@ export default async function SyncStatusPage() {
 
   if (profile?.role !== "admin") redirect("/dashboard")
 
-  const [apiOk, { count: total }, { count: mapped }] = await Promise.all([
+  const [apiOk, { count: total }, { count: mapped }, { data: logs }] = await Promise.all([
     checkApi(),
     supabase.from("matches").select("*", { count: "exact", head: true }) as unknown as Promise<{ count: number }>,
     supabase.from("matches").select("*", { count: "exact", head: true }).not("api_fixture_id", "is", null) as unknown as Promise<{ count: number }>,
+    supabase.from("sync_logs").select("id, triggered_at, source, synced, total, errors, payload").order("triggered_at", { ascending: false }).limit(50) as unknown as Promise<{ data: SyncLog[] | null }>,
   ])
 
   return (
@@ -54,6 +65,7 @@ export default async function SyncStatusPage() {
         initialApiOk={apiOk}
         mapped={mapped ?? 0}
         total={total ?? 0}
+        logs={logs ?? []}
       />
     </div>
   )

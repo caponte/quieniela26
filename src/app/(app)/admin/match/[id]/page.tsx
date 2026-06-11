@@ -6,6 +6,14 @@ import type { MatchWithTeams, Team } from "@/lib/utils/matchTypes"
 import type { EventType } from "@/lib/supabase/database.types"
 import MatchAdminPanel from "./MatchAdminPanel"
 
+export interface Player {
+  id: string
+  team_id: string
+  name: string
+  position: string
+  jersey_number: number | null
+}
+
 export interface MatchEvent {
   id: string
   match_id: string
@@ -71,6 +79,12 @@ export default async function AdminMatchPage({ params }: Props) {
     .eq("match_id", id)
     .order("minute", { ascending: true }) as unknown as { data: MatchEvent[] | null }
 
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, team_id, name, position, jersey_number")
+    .in("team_id", [match.home_team_id, match.away_team_id])
+    .order("jersey_number", { ascending: true }) as unknown as { data: Player[] | null }
+
   const stageLabel = STAGE_LABELS[match.stage] ?? match.stage
   const groupSuffix = match.group_name ? ` — Grupo ${match.group_name}` : ""
 
@@ -94,6 +108,7 @@ export default async function AdminMatchPage({ params }: Props) {
         homeTeam={homeTeam}
         awayTeam={awayTeam}
         events={events ?? []}
+        players={players ?? []}
       />
     </div>
   )

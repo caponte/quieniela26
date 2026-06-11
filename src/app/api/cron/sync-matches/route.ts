@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import type { Database, MatchStatus } from "@/lib/supabase/database.types";
 
@@ -115,6 +116,24 @@ async function syncMatch(
   };
 }
 
+async function insertLog(
+  supabase: ReturnType<typeof adminClient>,
+  source: string,
+  payload: object,
+  synced?: number,
+  total?: number,
+  errors?: string[]
+) {
+  const db = supabase as any;
+  await db.from("sync_logs").insert({
+    source,
+    synced: synced ?? null,
+    total: total ?? null,
+    errors: errors && errors.length > 0 ? errors : null,
+    payload,
+  });
+}
+
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -125,9 +144,6 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
 
   // ── TEST MODE ──────────────────────────────────────────────────────────────
-  // POST body: { testFixtureId: number, ourMatchId: string }
-  // Fetches any fixture from football-data.org and syncs it against ourMatchId.
-  // Useful for verifying goal/event sync with non-WC matches before the tournament.
   if (body.testFixtureId && body.ourMatchId) {
     const apiMatch = await fdFetch(`/matches/${body.testFixtureId}`);
 
@@ -140,7 +156,10 @@ export async function POST(req: NextRequest) {
     if (!ourMatch) return NextResponse.json({ error: "Match not found in DB" }, { status: 404 });
 
     const result = await syncMatch(supabase, apiMatch, ourMatch);
-    return NextResponse.json({ test: true, ...result });
+    const responsePayload = { test: true, ...result };
+    await insertLog(supabase, "test", responsePayload, 1, 1, result.errors);
+    revalidatePath("/", "layout");
+    return NextResponse.json(responsePayload);
   }
   // ── END TEST MODE ──────────────────────────────────────────────────────────
 
@@ -154,9 +173,15 @@ export async function POST(req: NextRequest) {
     .not("api_fixture_id", "is", null)
     .or(`status.eq.live,and(status.eq.scheduled,match_date.lte.${in4h})`) as unknown as { data: OurMatch[] | null; error: { message: string } | null };
 
-  if (matchErr) return NextResponse.json({ error: matchErr.message }, { status: 500 });
+  if (matchErr) {
+    await insertLog(supabase, body.source === "manual" ? "manual" : "cron", { error: matchErr.message });
+    return NextResponse.json({ error: matchErr.message }, { status: 500 });
+  }
+
   if (!ourMatches || ourMatches.length === 0) {
-    return NextResponse.json({ synced: 0, message: "No matches to sync" });
+    const responsePayload = { synced: 0, message: "No matches to sync" };
+    await insertLog(supabase, body.source === "manual" ? "manual" : "cron", responsePayload, 0, 0);
+    return NextResponse.json(responsePayload);
   }
 
   const dateFrom = now.toISOString().split("T")[0];
@@ -176,18 +201,32 @@ export async function POST(req: NextRequest) {
 
   let synced = 0;
   const allErrors: string[] = [];
+  const matchResults: object[] = [];
 
   for (const [apiId, apiMatch] of apiById) {
     const ourMatch = ourById.get(apiId);
     if (!ourMatch) continue;
 
     const result = await syncMatch(supabase, apiMatch, ourMatch);
+    matchResults.push(result);
     if (result.errors.length > 0) {
       allErrors.push(...result.errors.map((e) => `[M${apiId}] ${e}`));
     } else {
       synced++;
     }
   }
+
+  const source = body.source === "manual" ? "manual" : "cron";
+  const responsePayload = {
+    synced,
+    total: ourMatches.length,
+    matches: matchResults,
+    ...(allErrors.length > 0 && { errors: allErrors }),
+  };
+
+  await insertLog(supabase, source, responsePayload, synced, ourMatches.length, allErrors);
+
+  if (synced > 0) revalidatePath("/", "layout");
 
   return NextResponse.json({
     synced,

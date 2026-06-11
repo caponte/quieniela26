@@ -29,6 +29,7 @@ export async function triggerManualSync() {
         Authorization: `Bearer ${process.env.CRON_SECRET}`,
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({ source: "manual" }),
       cache: "no-store",
     })
     const data = await res.json()

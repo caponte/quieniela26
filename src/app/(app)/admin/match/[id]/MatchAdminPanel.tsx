@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import type { MatchWithTeams, Team } from "@/lib/utils/matchTypes"
 import type { MatchStatus, EventType } from "@/lib/supabase/database.types"
-import type { MatchEvent } from "./page"
+import type { MatchEvent, Player } from "./page"
 import { updateMatchResult, addMatchEvent, deleteMatchEvent } from "@/lib/actions/admin"
 
 const STATUS_OPTIONS: { value: MatchStatus; label: string }[] = [
@@ -32,9 +32,10 @@ interface Props {
   homeTeam: Team | null
   awayTeam: Team | null
   events: MatchEvent[]
+  players: Player[]
 }
 
-export default function MatchAdminPanel({ match, homeTeam, awayTeam, events }: Props) {
+export default function MatchAdminPanel({ match, homeTeam, awayTeam, events, players }: Props) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -48,6 +49,13 @@ export default function MatchAdminPanel({ match, homeTeam, awayTeam, events }: P
   const [eventType, setEventType] = useState<EventType>("goal")
   const [eventTeam, setEventTeam] = useState<string>(homeTeam?.id ?? "")
   const [eventPlayer, setEventPlayer] = useState("")
+
+  const teamPlayers = players.filter(p => p.team_id === eventTeam)
+
+  function handleTeamChange(teamId: string) {
+    setEventTeam(teamId)
+    setEventPlayer("")
+  }
   const [eventMinute, setEventMinute] = useState("")
   const [isFirstGoal, setIsFirstGoal] = useState(false)
   const [isOwnGoal, setIsOwnGoal] = useState(false)
@@ -86,6 +94,7 @@ export default function MatchAdminPanel({ match, homeTeam, awayTeam, events }: P
         setEventMinute("")
         setIsFirstGoal(false)
         setIsOwnGoal(false)
+        setPenaltyScored(true)
       }
     })
   }
@@ -227,7 +236,7 @@ export default function MatchAdminPanel({ match, homeTeam, awayTeam, events }: P
               <select
                 className={inputClass}
                 value={eventTeam}
-                onChange={e => setEventTeam(e.target.value)}
+                onChange={e => handleTeamChange(e.target.value)}
               >
                 {homeTeam && <option value={homeTeam.id}>{homeTeam.name}</option>}
                 {awayTeam && <option value={awayTeam.id}>{awayTeam.name}</option>}
@@ -235,13 +244,18 @@ export default function MatchAdminPanel({ match, homeTeam, awayTeam, events }: P
             </div>
             <div>
               <label className={labelClass}>Jugador (opcional)</label>
-              <input
-                type="text"
+              <select
                 className={inputClass}
                 value={eventPlayer}
                 onChange={e => setEventPlayer(e.target.value)}
-                placeholder="Nombre del jugador"
-              />
+              >
+                <option value="">— Sin jugador —</option>
+                {teamPlayers.map(p => (
+                  <option key={p.id} value={p.name}>
+                    {p.jersey_number != null ? `${p.jersey_number}. ` : ""}{p.name} ({p.position})
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelClass}>Minuto (opcional)</label>
