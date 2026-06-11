@@ -113,8 +113,7 @@ export default async function LeagueDetailPage({ params }: Props) {
       ? (supabase
           .from("bracket_predictions")
           .select("user_id")
-          .in("user_id", memberIds)
-          .is("league_id", null) as unknown as Promise<{ data: { user_id: string }[] | null }>)
+          .in("user_id", memberIds) as unknown as Promise<{ data: { user_id: string }[] | null }>)
       : Promise.resolve({ data: [] as { user_id: string }[] }),
 
     supabase
@@ -151,7 +150,10 @@ export default async function LeagueDetailPage({ params }: Props) {
         hasBracket: bracketPredictors.has(m.user_id),
       }
     })
-    .sort((a, b) => b.totalPts - a.totalPts || b.jornadaPts - a.jornadaPts)
+
+  const rowsByTotal   = [...rows].sort((a, b) => b.totalPts   - a.totalPts   || b.jornadaPts - a.jornadaPts)
+  const rowsByJornada = [...rows].sort((a, b) => b.jornadaPts - a.jornadaPts || b.totalPts   - a.totalPts)
+  const rowsByBracket = [...rows].sort((a, b) => b.bracketPts - a.bracketPts || b.totalPts   - a.totalPts)
 
   // Today's match predictions per member
   let todayPredByMatch: Record<string, Set<string>> = {}
@@ -160,8 +162,7 @@ export default async function LeagueDetailPage({ params }: Props) {
       .from("match_predictions")
       .select("match_id, user_id")
       .in("match_id", todayMatchIds)
-      .in("user_id", memberIds)
-      .is("league_id", null) as unknown as { data: { match_id: string; user_id: string }[] | null }
+      .in("user_id", memberIds) as unknown as { data: { match_id: string; user_id: string }[] | null }
 
     for (const p of todayPreds ?? []) {
       if (!todayPredByMatch[p.match_id]) todayPredByMatch[p.match_id] = new Set()
@@ -198,80 +199,94 @@ export default async function LeagueDetailPage({ params }: Props) {
         />
       </div>
 
-      {/* Leaderboard */}
-      <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[1.25rem_1fr_3rem_3rem_3rem] sm:grid-cols-[2rem_1fr_5rem_5rem_5rem] gap-1 sm:gap-2 px-3 sm:px-4 py-2 border-b border-(--color-border)">
-          <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">#</span>
-          <span className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">Jugador</span>
-          <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">
-            <span className="sm:hidden">Jor.</span><span className="hidden sm:inline">Jornada</span>
-          </span>
-          <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">
-            <span className="sm:hidden">Brk.</span><span className="hidden sm:inline">Bracket</span>
-          </span>
-          <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-(--color-muted) text-right">Tot.</span>
+      {/* Leaderboard — 3 tablas */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+        {/* Jornada */}
+        <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
+          <div className="grid grid-cols-[1.25rem_1fr_2.5rem] gap-1 px-3 py-2 border-b border-(--color-border)">
+            <span />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted)">Jornada</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted) text-right">Pts</span>
+          </div>
+          {rowsByJornada.map((row, i) => {
+            const isMe = row.userId === user.id
+            return (
+              <div key={row.userId} className={`grid grid-cols-[1.25rem_1fr_2.5rem] gap-1 px-3 py-2.5 items-center border-b border-(--color-border)/50 last:border-0 ${isMe ? "bg-(--color-accent)/5" : ""}`}>
+                <span className={`text-xs font-bold tabular-nums ${i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-(--color-muted)"}`}>{i + 1}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {row.avatarUrl ? (
+                    <Image src={row.avatarUrl} alt={row.name} width={20} height={20} className="w-5 h-5 rounded-full shrink-0 object-cover" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-[9px] font-bold">{row.name[0]?.toUpperCase() ?? "?"}</div>
+                  )}
+                  <span className={`text-xs truncate ${isMe ? "font-semibold text-(--color-accent)" : ""}`}>{row.name}</span>
+                </div>
+                <span className={`text-xs tabular-nums text-right font-semibold ${isMe ? "text-(--color-accent)" : "text-white"}`}>{row.jornadaPts}</span>
+              </div>
+            )
+          })}
         </div>
 
-        {rows.map((row, i) => {
-          const isMe = row.userId === user.id
-          return (
-            <div
-              key={row.userId}
-              className={`grid grid-cols-[1.25rem_1fr_3rem_3rem_3rem] sm:grid-cols-[2rem_1fr_5rem_5rem_5rem] gap-1 sm:gap-2 px-3 sm:px-4 py-3 items-center border-b border-(--color-border)/50 last:border-0 ${
-                isMe ? "bg-accent/5" : ""
-              }`}
-            >
-              {/* Rank */}
-              <span className={`text-xs sm:text-sm font-bold tabular-nums ${
-                i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-(--color-muted)"
-              }`}>
-                {i + 1}
-              </span>
-
-              {/* Player */}
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                {row.avatarUrl ? (
-                  <Image
-                    src={row.avatarUrl}
-                    alt={row.name}
-                    width={28}
-                    height={28}
-                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full shrink-0 object-cover"
-                  />
-                ) : (
-                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-xs font-bold">
-                    {row.name[0]?.toUpperCase() ?? "?"}
-                  </div>
-                )}
-                <div className="flex flex-col min-w-0">
-                  <span className={`text-xs sm:text-sm truncate ${isMe ? "font-semibold text-(--color-accent)" : ""}`}>
-                    {row.name}{isMe && " (tú)"}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {row.role === "owner" && (
-                      <span className="text-[10px] text-(--color-muted)">owner</span>
-                    )}
+        {/* Bracket */}
+        <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
+          <div className="grid grid-cols-[1.25rem_1fr_2.5rem] gap-1 px-3 py-2 border-b border-(--color-border)">
+            <span />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted)">Bracket</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted) text-right">Pts</span>
+          </div>
+          {rowsByBracket.map((row, i) => {
+            const isMe = row.userId === user.id
+            return (
+              <div key={row.userId} className={`grid grid-cols-[1.25rem_1fr_2.5rem] gap-1 px-3 py-2.5 items-center border-b border-(--color-border)/50 last:border-0 ${isMe ? "bg-(--color-accent)/5" : ""}`}>
+                <span className={`text-xs font-bold tabular-nums ${i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-(--color-muted)"}`}>{i + 1}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {row.avatarUrl ? (
+                    <Image src={row.avatarUrl} alt={row.name} width={20} height={20} className="w-5 h-5 rounded-full shrink-0 object-cover" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-[9px] font-bold">{row.name[0]?.toUpperCase() ?? "?"}</div>
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span className={`text-xs truncate ${isMe ? "font-semibold text-(--color-accent)" : ""}`}>{row.name}</span>
                     {isBracketLocked && (
-                      <Link
-                        href={`/league/${rawLeague.id}/bracket/${row.userId}`}
-                        className="text-[10px] text-(--color-muted) hover:text-white underline-offset-2 hover:underline transition-colors"
-                      >
+                      <Link href={`/league/${rawLeague.id}/bracket/${row.userId}`} className="text-[9px] text-(--color-muted) hover:text-white underline-offset-2 hover:underline transition-colors leading-tight">
                         ver bracket
                       </Link>
                     )}
                   </div>
                 </div>
+                <span className={`text-xs tabular-nums text-right font-semibold ${isMe ? "text-(--color-accent)" : "text-white"}`}>{row.bracketPts}</span>
               </div>
+            )
+          })}
+        </div>
 
-              {/* Points */}
-              <span className="text-xs sm:text-sm tabular-nums text-right text-(--color-muted)">{row.jornadaPts}</span>
-              <span className="text-xs sm:text-sm tabular-nums text-right text-(--color-muted)">{row.bracketPts}</span>
-              <span className={`text-xs sm:text-sm tabular-nums text-right font-semibold ${isMe ? "text-(--color-accent)" : "text-white"}`}>
-                {row.totalPts}
-              </span>
-            </div>
-          )
-        })}
+        {/* Total */}
+        <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
+          <div className="grid grid-cols-[1.25rem_1fr_2.5rem] gap-1 px-3 py-2 border-b border-(--color-border)">
+            <span />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted)">Total</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted) text-right">Pts</span>
+          </div>
+          {rowsByTotal.map((row, i) => {
+            const isMe = row.userId === user.id
+            return (
+              <div key={row.userId} className={`grid grid-cols-[1.25rem_1fr_2.5rem] gap-1 px-3 py-2.5 items-center border-b border-(--color-border)/50 last:border-0 ${isMe ? "bg-(--color-accent)/5" : ""}`}>
+                <span className={`text-xs font-bold tabular-nums ${i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-(--color-muted)"}`}>{i + 1}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {row.avatarUrl ? (
+                    <Image src={row.avatarUrl} alt={row.name} width={20} height={20} className="w-5 h-5 rounded-full shrink-0 object-cover" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-[9px] font-bold">{row.name[0]?.toUpperCase() ?? "?"}</div>
+                  )}
+                  <span className={`text-xs truncate ${isMe ? "font-semibold text-(--color-accent)" : ""}`}>{row.name}</span>
+                </div>
+                <span className={`text-xs tabular-nums text-right font-semibold ${isMe ? "text-(--color-accent)" : "text-white"}`}>{row.totalPts}</span>
+              </div>
+            )
+          })}
+        </div>
+
       </div>
 
       {/* Pendientes section */}
@@ -314,8 +329,8 @@ export default async function LeagueDetailPage({ params }: Props) {
             <span className="text-sm font-medium">Partidos de hoy</span>
             {todayMatches.map((match) => {
               const predicted = todayPredByMatch[match.id] ?? new Set<string>()
-              const missing = rows.filter((r) => !predicted.has(r.userId))
-              const predictedCount = rows.length - missing.length
+              const missing = rowsByTotal.filter((r) => !predicted.has(r.userId))
+              const predictedCount = rowsByTotal.length - missing.length
               return (
                 <div key={match.id} className="pt-3 border-t border-(--color-border)/50 first:border-0 first:pt-0">
                   <div className="flex items-center justify-between mb-2">
@@ -364,7 +379,7 @@ export default async function LeagueDetailPage({ params }: Props) {
         <div className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-(--color-muted) mb-3">Gestionar miembros</h2>
           <div className="flex flex-col gap-2">
-            {rows
+            {rowsByTotal
               .filter((r) => r.userId !== user.id)
               .map((r) => (
                 <div key={r.userId} className="flex items-center justify-between bg-(--color-surface) border border-(--color-border) rounded-xl px-4 py-3">

@@ -1,4 +1,4 @@
-export const BRACKET_LOCK_TIME = new Date("2026-06-11T14:50:00Z")
+export const BRACKET_LOCK_TIME = new Date("2026-06-11T18:50:00Z")
 
 export const GROUPS = ["A","B","C","D","E","F","G","H","I","J","K","L"] as const
 export type GroupName = (typeof GROUPS)[number]

@@ -179,25 +179,26 @@ export default async function DashboardPage() {
   const jornadaMap = Object.fromEntries((jornadaRes.data ?? []).map((r) => [r.user_id, r.total_points]));
   const bracketMap = Object.fromEntries((bracketRes.data ?? []).map((r) => [r.user_id, r.total_points]));
 
-  const leaderboard: LeaderboardEntry[] = firstLeague && firstLeagueMemberIds.length > 0
-    ? firstLeagueMembers
-        .map((m) => {
-          const u = userMap[m.user_id];
-          const jornadaPts = jornadaMap[m.user_id] ?? 0;
-          const bracketPts = bracketMap[m.user_id] ?? 0;
-          return {
-            userId: m.user_id,
-            name: u?.name ?? "—",
-            avatarUrl: u?.avatar_url ?? null,
-            jornadaPts,
-            bracketPts,
-            totalPts: jornadaPts + bracketPts,
-            isMe: m.user_id === user!.id,
-          };
-        })
-        .sort((a, b) => b.totalPts - a.totalPts || b.jornadaPts - a.jornadaPts)
-        .slice(0, 5)
+  const leaderboardBase: LeaderboardEntry[] = firstLeague && firstLeagueMemberIds.length > 0
+    ? firstLeagueMembers.map((m) => {
+        const u = userMap[m.user_id];
+        const jornadaPts = jornadaMap[m.user_id] ?? 0;
+        const bracketPts = bracketMap[m.user_id] ?? 0;
+        return {
+          userId: m.user_id,
+          name: u?.name ?? "—",
+          avatarUrl: u?.avatar_url ?? null,
+          jornadaPts,
+          bracketPts,
+          totalPts: jornadaPts + bracketPts,
+          isMe: m.user_id === user!.id,
+        };
+      })
     : [];
+
+  const leaderboardByTotal   = [...leaderboardBase].sort((a, b) => b.totalPts   - a.totalPts   || b.jornadaPts - a.jornadaPts).slice(0, 5);
+  const leaderboardByJornada = [...leaderboardBase].sort((a, b) => b.jornadaPts - a.jornadaPts || b.totalPts   - a.totalPts).slice(0, 5);
+  const leaderboardByBracket = [...leaderboardBase].sort((a, b) => b.bracketPts - a.bracketPts || b.totalPts   - a.totalPts).slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -317,7 +318,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* Leaderboard preview for first league */}
-          {firstLeague && leaderboard.length > 0 && (
+          {firstLeague && leaderboardBase.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-bold text-base truncate">{firstLeague.name}</h2>
@@ -325,48 +326,28 @@ export default async function DashboardPage() {
                   Ver todo →
                 </Link>
               </div>
-              <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
-                {/* Header */}
-                <div className="grid grid-cols-[1.5rem_1fr_3.5rem_3.5rem] gap-2 px-3 py-2 border-b border-(--color-border)">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted)">#</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted)">Jugador</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted) text-right">Jorn.</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-(--color-muted) text-right">Total</span>
-                </div>
-                {leaderboard.map((row, i) => (
-                  <div
-                    key={row.userId}
-                    className={`grid grid-cols-[1.5rem_1fr_3.5rem_3.5rem] gap-2 px-3 py-2.5 items-center border-b border-(--color-border)/40 last:border-0 ${
-                      row.isMe ? "bg-(--color-accent)/5" : ""
-                    }`}
-                  >
-                    <span className={`text-xs font-bold tabular-nums ${
-                      i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-(--color-muted)"
-                    }`}>
-                      {i + 1}
-                    </span>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      {row.avatarUrl ? (
-                        <Image
-                          src={row.avatarUrl}
-                          alt={row.name}
-                          width={22}
-                          height={22}
-                          className="rounded-full shrink-0 object-cover"
-                        />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-[9px] font-bold">
-                          {row.name[0]?.toUpperCase() ?? "?"}
-                        </div>
-                      )}
-                      <span className={`text-xs truncate ${row.isMe ? "font-semibold text-(--color-accent)" : ""}`}>
-                        {row.name}{row.isMe && " (tú)"}
-                      </span>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { title: "Jornada", data: leaderboardByJornada, pts: (r: LeaderboardEntry) => r.jornadaPts },
+                  { title: "Bracket", data: leaderboardByBracket, pts: (r: LeaderboardEntry) => r.bracketPts },
+                  { title: "Total",   data: leaderboardByTotal,   pts: (r: LeaderboardEntry) => r.totalPts   },
+                ] as const).map(({ title, data, pts }) => (
+                  <div key={title} className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
+                    <div className="px-2 py-1.5 border-b border-(--color-border)">
+                      <span className="text-[9px] font-semibold uppercase tracking-widest text-(--color-muted)">{title}</span>
                     </div>
-                    <span className="text-xs tabular-nums text-right text-(--color-muted)">{row.jornadaPts}</span>
-                    <span className={`text-xs tabular-nums text-right font-semibold ${row.isMe ? "text-(--color-accent)" : "text-white"}`}>
-                      {row.totalPts}
-                    </span>
+                    {data.map((row, i) => (
+                      <div key={row.userId} className={`flex items-center gap-1 px-2 py-1.5 border-b border-(--color-border)/40 last:border-0 ${row.isMe ? "bg-(--color-accent)/5" : ""}`}>
+                        <span className={`text-[10px] font-bold tabular-nums w-4 shrink-0 ${i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-(--color-muted)"}`}>{i + 1}</span>
+                        {row.avatarUrl ? (
+                          <Image src={row.avatarUrl} alt={row.name} width={16} height={16} className="w-4 h-4 rounded-full shrink-0 object-cover" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-[8px] font-bold">{row.name[0]?.toUpperCase() ?? "?"}</div>
+                        )}
+                        <span className={`text-[11px] truncate flex-1 min-w-0 ${row.isMe ? "font-semibold text-(--color-accent)" : ""}`}>{row.name}</span>
+                        <span className={`text-[11px] tabular-nums shrink-0 font-semibold ${row.isMe ? "text-(--color-accent)" : "text-white"}`}>{pts(row)}</span>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
