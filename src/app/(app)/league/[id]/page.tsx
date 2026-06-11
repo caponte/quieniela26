@@ -80,14 +80,8 @@ export default async function LeagueDetailPage({ params }: Props) {
 
   const isOwner = myMembership.role === "owner"
 
-  // Today's date bounds (UTC)
-  const todayStart = new Date()
-  todayStart.setUTCHours(0, 0, 0, 0)
-  const todayEnd = new Date(todayStart)
-  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1)
-
-  // Parallel: leaderboard data + bracket status + today's matches
-  const [usersResult, jornadaResult, bracketResult, bracketPredsResult, todayMatchesResult] = await Promise.all([
+  // Parallel: leaderboard data + bracket status + upcoming matches
+  const [usersResult, jornadaResult, bracketResult, bracketPredsResult, upcomingMatchesResult] = await Promise.all([
     supabase
       .from("users")
       .select("id, name, avatar_url")
@@ -121,18 +115,18 @@ export default async function LeagueDetailPage({ params }: Props) {
       .select(`id, match_number, stage, group_name, match_date,
         home_team:teams!matches_home_team_id_fkey(name, fifa_code),
         away_team:teams!matches_away_team_id_fkey(name, fifa_code)`)
-      .gte("match_date", todayStart.toISOString())
-      .lt("match_date", todayEnd.toISOString())
+      .gte("match_date", new Date().toISOString())
       .not("status", "eq", "finished")
-      .order("match_date") as unknown as Promise<{ data: TodayMatch[] | null }>,
+      .order("match_date")
+      .limit(8) as unknown as Promise<{ data: TodayMatch[] | null }>,
   ])
 
   const userMap = Object.fromEntries((usersResult.data ?? []).map((u) => [u.id, u]))
   const jornadaMap = Object.fromEntries((jornadaResult.data ?? []).map((r) => [r.user_id, r.total_points]))
   const bracketMap = Object.fromEntries((bracketResult.data ?? []).map((r) => [r.user_id, r.total_points]))
   const bracketPredictors = new Set((bracketPredsResult.data ?? []).map((r) => r.user_id))
-  const todayMatches = todayMatchesResult.data ?? []
-  const todayMatchIds = todayMatches.map((m) => m.id)
+  const upcomingMatches = upcomingMatchesResult.data ?? []
+  const upcomingMatchIds = upcomingMatches.map((m) => m.id)
 
   const rows = members
     .map((m) => {
@@ -155,18 +149,18 @@ export default async function LeagueDetailPage({ params }: Props) {
   const rowsByJornada = [...rows].sort((a, b) => b.jornadaPts - a.jornadaPts || b.totalPts   - a.totalPts)
   const rowsByBracket = [...rows].sort((a, b) => b.bracketPts - a.bracketPts || b.totalPts   - a.totalPts)
 
-  // Today's match predictions per member
-  let todayPredByMatch: Record<string, Set<string>> = {}
-  if (todayMatchIds.length > 0 && memberIds.length > 0) {
-    const { data: todayPreds } = await supabase
+  // Upcoming match predictions per member
+  let upcomingPredByMatch: Record<string, Set<string>> = {}
+  if (upcomingMatchIds.length > 0 && memberIds.length > 0) {
+    const { data: upcomingPreds } = await supabase
       .from("match_predictions")
       .select("match_id, user_id")
-      .in("match_id", todayMatchIds)
+      .in("match_id", upcomingMatchIds)
       .in("user_id", memberIds) as unknown as { data: { match_id: string; user_id: string }[] | null }
 
-    for (const p of todayPreds ?? []) {
-      if (!todayPredByMatch[p.match_id]) todayPredByMatch[p.match_id] = new Set()
-      todayPredByMatch[p.match_id].add(p.user_id)
+    for (const p of upcomingPreds ?? []) {
+      if (!upcomingPredByMatch[p.match_id]) upcomingPredByMatch[p.match_id] = new Set()
+      upcomingPredByMatch[p.match_id].add(p.user_id)
     }
   }
 
@@ -323,22 +317,29 @@ export default async function LeagueDetailPage({ params }: Props) {
           )}
         </div>
 
-        {/* Today's match predictions */}
-        {todayMatches.length > 0 ? (
+        {/* Upcoming match predictions */}
+        {upcomingMatches.length > 0 ? (
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4 space-y-3">
-            <span className="text-sm font-medium">Partidos de hoy</span>
-            {todayMatches.map((match) => {
-              const predicted = todayPredByMatch[match.id] ?? new Set<string>()
+            <span className="text-sm font-medium">Próximos partidos</span>
+            {upcomingMatches.map((match) => {
+              const predicted = upcomingPredByMatch[match.id] ?? new Set<string>()
               const missing = rowsByTotal.filter((r) => !predicted.has(r.userId))
               const predictedCount = rowsByTotal.length - missing.length
+              const matchDate = new Date(match.match_date)
               return (
                 <div key={match.id} className="pt-3 border-t border-(--color-border)/50 first:border-0 first:pt-0">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium">
-                      {match.home_team?.fifa_code ?? "?"} vs {match.away_team?.fifa_code ?? "?"}{" "}
-                      <span className="text-(--color-muted) font-normal">· M{match.match_number}</span>
-                    </span>
-                    <span className={`text-xs font-semibold tabular-nums ${
+                    <div>
+                      <span className="text-xs font-medium">
+                        {match.home_team?.fifa_code ?? "?"} vs {match.away_team?.fifa_code ?? "?"}{" "}
+                        <span className="text-(--color-muted) font-normal">· M{match.match_number}</span>
+                      </span>
+                      <p className="text-[10px] text-(--color-muted) mt-0.5">
+                        {matchDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}{" "}
+                        {matchDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-semibold tabular-nums shrink-0 ml-2 ${
                       predictedCount === members.length ? "text-emerald-400" : "text-amber-400"
                     }`}>
                       {predictedCount}/{members.length}
@@ -368,8 +369,8 @@ export default async function LeagueDetailPage({ params }: Props) {
           </div>
         ) : (
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-            <span className="text-sm font-medium block mb-1">Partidos de hoy</span>
-            <p className="text-xs text-(--color-muted)">No hay partidos programados para hoy.</p>
+            <span className="text-sm font-medium block mb-1">Próximos partidos</span>
+            <p className="text-xs text-(--color-muted)">No hay partidos próximos programados.</p>
           </div>
         )}
       </div>
