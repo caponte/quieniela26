@@ -23,6 +23,7 @@ export interface LeagueMemberPred {
   hasPenalty: boolean
   isMe: boolean
   totalPoints: number
+  matchPoints: number | null
   livePoints: number | null
   liveBreakdown: import("@/lib/utils/livePoints").LivePointsBreakdown | null
 }
@@ -560,8 +561,8 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds }: {
           </div>
           <div className="divide-y divide-white/6">
             {[...leaguePreds].sort((a, b) => {
-              const aScore = a.livePoints !== null ? a.totalPoints + a.livePoints : a.totalPoints
-              const bScore = b.livePoints !== null ? b.totalPoints + b.livePoints : b.totalPoints
+              const aScore = a.livePoints !== null ? a.totalPoints + a.livePoints : (a.matchPoints ?? 0)
+              const bScore = b.livePoints !== null ? b.totalPoints + b.livePoints : (b.matchPoints ?? 0)
               return bScore - aScore
             }).map((pred) => {
               const firstTeamName = pred.firstTeamToScoreId === match.home_team?.id
@@ -608,11 +609,11 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds }: {
                         <LivePointsTooltip breakdown={pred.liveBreakdown} totalAccum={pred.totalPoints} />
                       </div>
                     </div>
-                  ) : (
+                  ) : pred.matchPoints !== null ? (
                     <span className="text-xs font-bold tabular-nums text-(--color-accent) w-8 text-right shrink-0">
-                      {pred.totalPoints}
+                      {pred.matchPoints}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               )
             })}

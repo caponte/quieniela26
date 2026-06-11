@@ -133,10 +133,10 @@ export default async function JornadaPage({ params }: Props) {
     const [leaguePredsRes, profilesRes, jornadaPtsRes, bracketPtsRes] = await Promise.all([
       supabase
         .from("match_predictions")
-        .select("user_id, match_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, has_penalty")
+        .select("user_id, match_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, has_penalty, match_points(total_points)")
         .in("match_id", matchIds)
         .in("user_id", memberIds)
-        .or(`league_id.is.null,league_id.eq.${firstLeagueId}`) as unknown as Promise<{ data: { user_id: string; match_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean }[] | null }>,
+        .or(`league_id.is.null,league_id.eq.${firstLeagueId}`) as unknown as Promise<{ data: { user_id: string; match_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean; match_points: { total_points: number } | null }[] | null }>,
 
       supabase
         .from("users")
@@ -201,6 +201,7 @@ export default async function JornadaPage({ params }: Props) {
         hasPenalty: pred.has_penalty,
         isMe: pred.user_id === user.id,
         totalPoints: (jornadaMap[pred.user_id] ?? 0) + (bracketMap[pred.user_id] ?? 0),
+        matchPoints: pred.match_points?.total_points ?? null,
         livePoints: liveState
           ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer }, liveState).total
           : null,
