@@ -4,12 +4,28 @@ import { useState, useTransition, useMemo } from "react"
 import Image from "next/image"
 import { saveMatchPrediction } from "@/lib/actions/match"
 import { isMatchLocked } from "@/lib/utils/jornada"
+import { LivePointsTooltip } from "@/components/LivePointsTooltip"
 import type { JornadaSlug } from "@/lib/utils/jornada"
 import type { MatchWithTeams, MatchPredictionRow, PlayerRow, Team } from "@/lib/utils/matchTypes"
 
 type Match = MatchWithTeams
 type Player = PlayerRow
 type Prediction = MatchPredictionRow
+
+export interface LeagueMemberPred {
+  userId: string
+  name: string
+  avatarUrl: string | null
+  homeGoals: number
+  awayGoals: number
+  firstTeamToScoreId: string | null
+  firstGoalScorer: string | null
+  hasPenalty: boolean
+  isMe: boolean
+  totalPoints: number
+  livePoints: number | null
+  liveBreakdown: import("@/lib/utils/livePoints").LivePointsBreakdown | null
+}
 
 interface MatchState {
   homeGoals: number
@@ -28,6 +44,7 @@ interface Props {
   matches: Match[]
   predictionsByMatchId: Record<string, Prediction>
   players: Player[]
+  leaguePredsByMatchId: Record<string, LeagueMemberPred[]>
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -62,7 +79,7 @@ const POS_ORDER: Record<string, number> = { FWD: 0, MID: 1, DEF: 2, GK: 3 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players }: Props) {
+export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId }: Props) {
   const [current, setCurrent] = useState(0)
   const [states, setStates] = useState<MatchState[]>(() =>
     matches.map((m) => initState(m, predictionsByMatchId[m.id]))
@@ -82,7 +99,6 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
     || match.status === "live"
     || match.status === "finished"
     || match.status === "postponed"
-  const alreadyFinished = match.status === "finished"
 
   const matchPlayers = useMemo(() => {
     const homeId = match.home_team?.id
@@ -192,12 +208,6 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
           <TeamDisplay team={match.away_team} side="away" />
         </div>
 
-        {alreadyFinished && match.home_score !== null && (
-          <p className="text-sm mt-3 text-(--color-muted)">
-            Resultado: {match.home_score} – {match.away_score}
-          </p>
-        )}
-
         {locked && (
           <p className="text-xs mt-2 text-amber-400 font-medium">
             Este partido ya está bloqueado — solo lectura
@@ -205,144 +215,148 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
         )}
       </div>
 
-      {/* Prediction form */}
+      {/* Prediction form or locked summary */}
       <div className="flex flex-col gap-5">
 
-        {/* Score picker */}
-        <Section title="Resultado">
-          <div className="flex items-center justify-center gap-6">
-            <GoalPicker
-              value={state.homeGoals}
-              disabled={locked}
-              onChange={(v) => updateState({ homeGoals: v })}
-              label={match.home_team?.fifa_code ?? "LOC"}
-            />
-            <span className="text-2xl font-bold">:</span>
-            <GoalPicker
-              value={state.awayGoals}
-              disabled={locked}
-              onChange={(v) => updateState({ awayGoals: v })}
-              label={match.away_team?.fifa_code ?? "VIS"}
-            />
-          </div>
-        </Section>
-
-        {/* First team to score */}
-        <Section title="Primer equipo en marcar">
-          <div className="flex gap-2">
-            {[
-              { id: match.home_team?.id ?? "home", label: match.home_team?.name ?? "Local" },
-              { id: null, label: "Ninguno" },
-              { id: match.away_team?.id ?? "away", label: match.away_team?.name ?? "Visitante" },
-            ].map((opt) => (
-              <button
-                key={String(opt.id)}
-                disabled={locked}
-                onClick={() => updateState({ firstTeamToScore: opt.id })}
-                className={`flex-1 py-2 px-1 rounded-lg text-sm font-medium border transition-colors ${
-                  state.firstTeamToScore === opt.id
-                    ? "border-(--color-accent) bg-accent/10 text-(--color-accent)"
-                    : "border-white/10 text-(--color-muted) hover:border-white/20 hover:text-white"
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </Section>
-
-        {/* Penalty */}
-        <Section title="¿Habrá penales?">
-          <div className="flex gap-2">
-            {[false, true].map((val) => (
-              <button
-                key={String(val)}
-                disabled={locked}
-                onClick={() => updateState({ hasPenalty: val })}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  state.hasPenalty === val
-                    ? "border-(--color-accent) bg-accent/10 text-(--color-accent)"
-                    : "border-white/10 text-(--color-muted) hover:border-white/20 hover:text-white"
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {val ? "Sí" : "No"}
-              </button>
-            ))}
-          </div>
-        </Section>
-
-        {/* First goal scorer */}
-        <Section title="Primer goleador">
-          {matchPlayers.length === 0 ? (
-            <p className="text-sm text-(--color-muted) text-center py-2">Sin convocados disponibles</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <input
-                type="text"
-                placeholder="Buscar jugador..."
-                value={scorerSearch}
-                disabled={locked}
-                onChange={(e) => setScorerSearch(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm placeholder:text-(--color-muted) focus:outline-none focus:border-accent/50 disabled:opacity-50"
-              />
-              <div className="max-h-72 overflow-y-auto scrollbar-thin flex flex-col gap-1">
-                <button
-                  disabled={locked}
-                  onClick={() => updateState({ scorerId: null, scorerName: null })}
-                  className={`text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    state.scorerId === null
-                      ? "bg-accent/10 text-(--color-accent)"
-                      : "text-(--color-muted) hover:bg-white/5 hover:text-white"
-                  } disabled:opacity-50`}
-                >
-                  — Ninguno / No sé
-                </button>
-                <ScorerGroup
-                  team={match.home_team}
-                  players={filteredPlayers.filter((p) => p.team_id === match.home_team?.id)}
-                  selectedId={state.scorerId}
-                  locked={locked}
-                  onSelect={(p) => updateState({ scorerId: p.id, scorerName: p.name })}
+        {locked ? (
+          <LockedMatchSummary
+            match={match}
+            state={state}
+            hasPrediction={saved.has(current)}
+            leaguePreds={leaguePredsByMatchId[match.id] ?? []}
+          />
+        ) : (
+          <>
+            {/* Score picker */}
+            <Section title="Resultado">
+              <div className="flex items-center justify-center gap-6">
+                <GoalPicker
+                  value={state.homeGoals}
+                  disabled={false}
+                  onChange={(v) => updateState({ homeGoals: v })}
+                  label={match.home_team?.fifa_code ?? "LOC"}
                 />
-                <ScorerGroup
-                  team={match.away_team}
-                  players={filteredPlayers.filter((p) => p.team_id === match.away_team?.id)}
-                  selectedId={state.scorerId}
-                  locked={locked}
-                  onSelect={(p) => updateState({ scorerId: p.id, scorerName: p.name })}
+                <span className="text-2xl font-bold">:</span>
+                <GoalPicker
+                  value={state.awayGoals}
+                  disabled={false}
+                  onChange={(v) => updateState({ awayGoals: v })}
+                  label={match.away_team?.fifa_code ?? "VIS"}
                 />
-                {filteredPlayers.length === 0 && scorerSearch && (
-                  <p className="text-xs text-(--color-muted) px-3 py-2">Sin resultados</p>
-                )}
               </div>
-            </div>
-          )}
-        </Section>
+            </Section>
 
-        {error && (
-          <p className="text-sm text-red-400 text-center">{error}</p>
-        )}
+            {/* First team to score */}
+            <Section title="Primer equipo en marcar">
+              <div className="flex gap-2">
+                {[
+                  { id: match.home_team?.id ?? "home", label: match.home_team?.name ?? "Local" },
+                  { id: null, label: "Ninguno" },
+                  { id: match.away_team?.id ?? "away", label: match.away_team?.name ?? "Visitante" },
+                ].map((opt) => (
+                  <button
+                    key={String(opt.id)}
+                    onClick={() => updateState({ firstTeamToScore: opt.id })}
+                    className={`flex-1 py-2 px-1 rounded-lg text-sm font-medium border transition-colors ${
+                      state.firstTeamToScore === opt.id
+                        ? "border-(--color-accent) bg-accent/10 text-(--color-accent)"
+                        : "border-white/10 text-(--color-muted) hover:border-white/20 hover:text-white"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </Section>
 
-        {/* Actions */}
-        {!locked && (
-          <button
-            onClick={handleSaveAndNext}
-            disabled={isPending}
-            className="w-full py-3 rounded-xl font-semibold text-sm bg-(--color-accent) text-black hover:opacity-90 active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isPending
-              ? "Guardando..."
-              : current < matches.length - 1
-                ? "Guardar y siguiente →"
-                : "Guardar predicción ✓"
-            }
-          </button>
-        )}
+            {/* Penalty */}
+            <Section title="¿Habrá penales?">
+              <div className="flex gap-2">
+                {[false, true].map((val) => (
+                  <button
+                    key={String(val)}
+                    onClick={() => updateState({ hasPenalty: val })}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      state.hasPenalty === val
+                        ? "border-(--color-accent) bg-accent/10 text-(--color-accent)"
+                        : "border-white/10 text-(--color-muted) hover:border-white/20 hover:text-white"
+                    }`}
+                  >
+                    {val ? "Sí" : "No"}
+                  </button>
+                ))}
+              </div>
+            </Section>
 
-        {saved.has(current) && !isPending && (
-          <p className="text-xs text-emerald-400 text-center">
-            ✓ Predicción guardada
-          </p>
+            {/* First goal scorer */}
+            <Section title="Primer goleador">
+              {matchPlayers.length === 0 ? (
+                <p className="text-sm text-(--color-muted) text-center py-2">Sin convocados disponibles</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="text"
+                    placeholder="Buscar jugador..."
+                    value={scorerSearch}
+                    onChange={(e) => setScorerSearch(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm placeholder:text-(--color-muted) focus:outline-none focus:border-accent/50"
+                  />
+                  <div className="max-h-72 overflow-y-auto scrollbar-thin flex flex-col gap-1">
+                    <button
+                      onClick={() => updateState({ scorerId: null, scorerName: null })}
+                      className={`text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        state.scorerId === null
+                          ? "bg-accent/10 text-(--color-accent)"
+                          : "text-(--color-muted) hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      — Ninguno / No sé
+                    </button>
+                    <ScorerGroup
+                      team={match.home_team}
+                      players={filteredPlayers.filter((p) => p.team_id === match.home_team?.id)}
+                      selectedId={state.scorerId}
+                      locked={false}
+                      onSelect={(p) => updateState({ scorerId: p.id, scorerName: p.name })}
+                    />
+                    <ScorerGroup
+                      team={match.away_team}
+                      players={filteredPlayers.filter((p) => p.team_id === match.away_team?.id)}
+                      selectedId={state.scorerId}
+                      locked={false}
+                      onSelect={(p) => updateState({ scorerId: p.id, scorerName: p.name })}
+                    />
+                    {filteredPlayers.length === 0 && scorerSearch && (
+                      <p className="text-xs text-(--color-muted) px-3 py-2">Sin resultados</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Section>
+
+            {error && (
+              <p className="text-sm text-red-400 text-center">{error}</p>
+            )}
+
+            <button
+              onClick={handleSaveAndNext}
+              disabled={isPending}
+              className="w-full py-3 rounded-xl font-semibold text-sm bg-(--color-accent) text-black hover:opacity-90 active:scale-98 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isPending
+                ? "Guardando..."
+                : current < matches.length - 1
+                  ? "Guardar y siguiente →"
+                  : "Guardar predicción ✓"
+              }
+            </button>
+
+            {saved.has(current) && !isPending && (
+              <p className="text-xs text-emerald-400 text-center">
+                ✓ Predicción guardada
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -493,5 +507,133 @@ function MiniFlag({ url, name }: { url: string | null; name: string }) {
   if (!url) return <div className="w-4 h-2.75 rounded-sm bg-white/10 shrink-0" />
   return (
     <Image src={url} alt={name} width={16} height={11} className="rounded-sm object-cover shrink-0" />
+  )
+}
+
+function LockedMatchSummary({ match, state, hasPrediction, leaguePreds }: {
+  match: Match
+  state: MatchState
+  hasPrediction: boolean
+  leaguePreds: LeagueMemberPred[]
+}) {
+  const isLive = match.status === "live"
+  const isFinished = match.status === "finished"
+  const hasRealResult = (isLive || isFinished) && match.home_score !== null && match.away_score !== null
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Real result */}
+      {hasRealResult && (
+        <div className={`rounded-xl border p-4 text-center ${isLive ? "border-green-500/40 bg-green-500/5" : "border-white/10 bg-white/3"}`}>
+          {isLive && (
+            <p className="text-xs font-bold uppercase tracking-widest text-green-400 mb-2 flex items-center justify-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+              En vivo
+            </p>
+          )}
+          {!isLive && <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-3">Resultado</p>}
+          <div className="flex items-center justify-center gap-4">
+            <div className="flex flex-col items-center gap-1 w-20">
+              {match.home_team?.flag_url && (
+                <Image src={match.home_team.flag_url} alt={match.home_team.name} width={32} height={22} className="rounded-sm object-cover" />
+              )}
+              <span className="text-xs text-(--color-muted)">{match.home_team?.name ?? "—"}</span>
+            </div>
+            <span className={`text-3xl font-bold tabular-nums ${isLive ? "text-green-400" : ""}`}>
+              {match.home_score} – {match.away_score}
+            </span>
+            <div className="flex flex-col items-center gap-1 w-20">
+              {match.away_team?.flag_url && (
+                <Image src={match.away_team.flag_url} alt={match.away_team.name} width={32} height={22} className="rounded-sm object-cover" />
+              )}
+              <span className="text-xs text-(--color-muted)">{match.away_team?.name ?? "—"}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* League predictions table */}
+      {leaguePreds.length > 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/3">
+          <div className="px-4 py-2.5 border-b border-white/8">
+            <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">Predicciones de la liga</p>
+          </div>
+          <div className="divide-y divide-white/6">
+            {[...leaguePreds].sort((a, b) => {
+              const aScore = a.livePoints !== null ? a.totalPoints + a.livePoints : a.totalPoints
+              const bScore = b.livePoints !== null ? b.totalPoints + b.livePoints : b.totalPoints
+              return bScore - aScore
+            }).map((pred) => {
+              const firstTeamName = pred.firstTeamToScoreId === match.home_team?.id
+                ? match.home_team?.fifa_code
+                : pred.firstTeamToScoreId === match.away_team?.id
+                  ? match.away_team?.fifa_code
+                  : null
+              return (
+                <div
+                  key={pred.userId}
+                  className={`flex items-center gap-3 px-4 py-2.5 ${pred.isMe ? "bg-accent/5" : ""}`}
+                >
+                  {/* Avatar */}
+                  {pred.avatarUrl ? (
+                    <Image src={pred.avatarUrl} alt={pred.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {pred.name[0]?.toUpperCase() ?? "?"}
+                    </div>
+                  )}
+
+                  {/* Name */}
+                  <span className={`text-sm flex-1 min-w-0 truncate ${pred.isMe ? "font-semibold text-(--color-accent)" : ""}`}>
+                    {pred.name}
+                  </span>
+
+                  {/* Score */}
+                  <span className="text-sm font-bold tabular-nums shrink-0">
+                    {pred.homeGoals} – {pred.awayGoals}
+                  </span>
+
+                  {/* First scorer */}
+                  <span className="text-xs text-(--color-muted) w-24 text-right truncate shrink-0">
+                    {pred.firstGoalScorer ?? (firstTeamName ?? "—")}
+                  </span>
+
+                  {/* Points */}
+                  {pred.livePoints !== null && pred.liveBreakdown ? (
+                    <div className="relative group shrink-0">
+                      <span className="text-xs font-bold tabular-nums text-green-400 cursor-default">
+                        {pred.totalPoints + pred.livePoints} <span className="text-green-400">pts</span>
+                      </span>
+                      <div className="hidden group-hover:block">
+                        <LivePointsTooltip breakdown={pred.liveBreakdown} totalAccum={pred.totalPoints} />
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-bold tabular-nums text-(--color-accent) w-8 text-right shrink-0">
+                      {pred.totalPoints}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {!hasPrediction && (
+            <div className="px-4 py-2 border-t border-white/8">
+              <p className="text-xs text-(--color-muted) text-center">No hiciste predicción para este partido</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {leaguePreds.length === 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/3 p-4 text-center">
+          <p className="text-sm text-(--color-muted)">
+            {hasPrediction
+              ? "Nadie más en tu liga ha predicho este partido aún."
+              : "No hiciste predicción para este partido."}
+          </p>
+        </div>
+      )}
+    </div>
   )
 }

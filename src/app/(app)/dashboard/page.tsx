@@ -4,10 +4,12 @@ import Image from "next/image";
 import bracketImg from "@/assets/img/brackets.png";
 import predictImg from "@/assets/img/predict.png";
 import UpcomingMatchCard from "./UpcomingMatchCard";
-import type { MatchCardData } from "./UpcomingMatchCard";
+import type { MatchCardData, LeagueFullPred } from "./UpcomingMatchCard";
 import { getGroupRoundMatchIds } from "@/lib/utils/jornada";
 import { BracketCountdown } from "@/components/BracketCountdown";
 import { BRACKET_LOCK_TIME } from "@/lib/utils/bracket";
+import { calculateLivePoints } from "@/lib/utils/livePoints";
+import type { LiveMatchState } from "@/lib/utils/livePoints";
 
 interface MatchRow {
   id: string;
@@ -65,7 +67,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Step 1: core data in parallel
-  const [profileResult, matchesResult, leaguesResult, groupMatchesResult] = await Promise.all([
+  const [profileResult, matchesResult, liveMatchesResult, leaguesResult, groupMatchesResult] = await Promise.all([
     supabase.from("users").select("name").eq("id", user!.id).single(),
 
     supabase
@@ -78,6 +80,16 @@ export default async function DashboardPage() {
       .gte("match_date", new Date().toISOString())
       .order("match_date", { ascending: true })
       .limit(6) as unknown as Promise<{ data: MatchRow[] | null }>,
+
+    supabase
+      .from("matches")
+      .select(
+        `id, match_number, match_date, stage, group_name, home_score, away_score, status,
+         home_team:teams!matches_home_team_id_fkey(id, name, flag_url, fifa_code),
+         away_team:teams!matches_away_team_id_fkey(id, name, flag_url, fifa_code)`
+      )
+      .eq("status", "live")
+      .order("match_date", { ascending: true }) as unknown as Promise<{ data: MatchRow[] | null }>,
 
     supabase
       .from("league_members")
@@ -93,6 +105,30 @@ export default async function DashboardPage() {
 
   const profile = profileResult.data as { name: string } | null;
   const matches = matchesResult.data ?? [];
+  const liveMatches = liveMatchesResult.data ?? [];
+
+  // Fetch first-goal events for live matches
+  const liveMatchStateMap: Record<string, LiveMatchState> = {};
+  if (liveMatches.length > 0) {
+    const liveIds = liveMatches.map((m) => m.id);
+    const { data: firstGoalEvents } = await supabase
+      .from("match_events")
+      .select("match_id, team_id, player_name")
+      .in("match_id", liveIds)
+      .eq("is_first_goal", true)
+      .eq("is_own_goal", false)
+      .limit(liveIds.length) as unknown as { data: { match_id: string; team_id: string; player_name: string | null }[] | null };
+
+    for (const m of liveMatches) {
+      const evt = (firstGoalEvents ?? []).find((e) => e.match_id === m.id);
+      liveMatchStateMap[m.id] = {
+        homeScore: m.home_score ?? 0,
+        awayScore: m.away_score ?? 0,
+        firstGoalTeamId: evt?.team_id ?? null,
+        firstGoalScorerName: evt?.player_name ?? null,
+      };
+    }
+  }
   const matchIds = matches.map((m) => m.id);
 
   const allGroupMatches = groupMatchesResult.data ?? [];
@@ -106,15 +142,18 @@ export default async function DashboardPage() {
   const leagues = rawLeagues.filter((l) => l.league !== null).map((l) => l.league!);
   const firstLeague: LeagueRow | null = leagues[0] ?? null;
 
+  const liveMatchIds = liveMatches.map((m) => m.id);
+  const allPredMatchIds = [...new Set([...matchIds, ...liveMatchIds])];
+
   // Step 2: user's own predictions + first league members (parallel)
   const [rawPredsResult, firstLeagueMembersResult] = await Promise.all([
-    matchIds.length
+    allPredMatchIds.length
       ? supabase
           .from("match_predictions")
           .select("match_id, home_goals, away_goals, first_team_to_score, has_penalty, first_goal_scorer")
           .eq("user_id", user!.id)
           .is("league_id", null)
-          .in("match_id", matchIds) as unknown as Promise<{ data: PredRow[] | null }>
+          .in("match_id", allPredMatchIds) as unknown as Promise<{ data: PredRow[] | null }>
       : Promise.resolve({ data: [] as PredRow[] }),
 
     firstLeague
@@ -143,28 +182,51 @@ export default async function DashboardPage() {
       ? supabase.from("leaderboard_bracket").select("user_id, total_points").is("league_id", null).in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: PtsRow[] | null }>
       : Promise.resolve({ data: [] as PtsRow[] }),
 
-    firstLeagueMemberIds.length && matchIds.length
+    firstLeagueMemberIds.length && allPredMatchIds.length
       ? supabase
           .from("match_predictions")
-          .select("match_id, user_id")
-          .in("match_id", matchIds)
-          .in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: { match_id: string; user_id: string }[] | null }>
+          .select("match_id, user_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, has_penalty")
+          .in("match_id", allPredMatchIds)
+          .in("user_id", firstLeagueMemberIds)
+          .or(`league_id.is.null,league_id.eq.${firstLeague!.id}`) as unknown as Promise<{ data: { match_id: string; user_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean }[] | null }>
 
-      : Promise.resolve({ data: [] as { match_id: string; user_id: string }[] }),
+      : Promise.resolve({ data: [] as { match_id: string; user_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean }[] }),
   ]);
 
   const userMap = Object.fromEntries((usersRes.data ?? []).map((u) => [u.id, u]));
+  const jornadaMap = Object.fromEntries((jornadaRes.data ?? []).map((r) => [r.user_id, r.total_points]));
+  const bracketMap = Object.fromEntries((bracketRes.data ?? []).map((r) => [r.user_id, r.total_points]));
 
-  // League predictors per match (deduplicated by user_id — NULL unique constraint doesn't hold in Postgres)
+  // League predictors per match (deduplicated — NULL unique constraint doesn't hold in Postgres)
   const leaguePredsPerMatch: Record<string, { name: string; avatarUrl: string | null }[]> = {};
+  const leagueFullPredsPerMatch: Record<string, LeagueFullPred[]> = {};
   const seenPred = new Set<string>();
-  for (const p of leaguePredsRes.data ?? []) {
+  for (const p of [...(leaguePredsRes.data ?? [])].reverse()) {
     const key = `${p.match_id}:${p.user_id}`;
     if (seenPred.has(key)) continue;
     seenPred.add(key);
-    if (!leaguePredsPerMatch[p.match_id]) leaguePredsPerMatch[p.match_id] = [];
     const u = userMap[p.user_id];
-    if (u) leaguePredsPerMatch[p.match_id].push({ name: u.name, avatarUrl: u.avatar_url });
+    if (!u) continue;
+    if (!leaguePredsPerMatch[p.match_id]) leaguePredsPerMatch[p.match_id] = [];
+    leaguePredsPerMatch[p.match_id].push({ name: u.name, avatarUrl: u.avatar_url });
+    if (!leagueFullPredsPerMatch[p.match_id]) leagueFullPredsPerMatch[p.match_id] = [];
+    leagueFullPredsPerMatch[p.match_id].push({
+      userId: p.user_id,
+      name: u.name,
+      avatarUrl: u.avatar_url,
+      homeGoals: p.home_goals,
+      awayGoals: p.away_goals,
+      firstTeamToScoreId: p.first_team_to_score,
+      firstGoalScorer: p.first_goal_scorer,
+      isMe: p.user_id === user!.id,
+      totalPoints: (jornadaMap[p.user_id] ?? 0) + (bracketMap[p.user_id] ?? 0),
+      livePoints: liveMatchStateMap[p.match_id]
+        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: p.first_goal_scorer }, liveMatchStateMap[p.match_id]).total
+        : null,
+      liveBreakdown: liveMatchStateMap[p.match_id]
+        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: p.first_goal_scorer }, liveMatchStateMap[p.match_id])
+        : null,
+    });
   }
 
   const matchCards: MatchCardData[] = matches.map((m) => ({
@@ -173,11 +235,19 @@ export default async function DashboardPage() {
     jornadaSlug: jornadaSlugForMatch(m, groupRoundIds),
     leaguePredictors: firstLeagueMemberIds.length > 0 ? (leaguePredsPerMatch[m.id] ?? []) : null,
     leagueTotal: firstLeagueMemberIds.length > 0 ? firstLeagueMemberIds.length : null,
+    leagueFullPreds: firstLeagueMemberIds.length > 0 ? (leagueFullPredsPerMatch[m.id] ?? []) : null,
+  }));
+
+  const liveMatchCards: MatchCardData[] = liveMatches.map((m) => ({
+    ...m,
+    prediction: predByMatchId[m.id] ?? null,
+    jornadaSlug: jornadaSlugForMatch(m, groupRoundIds),
+    leaguePredictors: firstLeagueMemberIds.length > 0 ? (leaguePredsPerMatch[m.id] ?? []) : null,
+    leagueTotal: firstLeagueMemberIds.length > 0 ? firstLeagueMemberIds.length : null,
+    leagueFullPreds: firstLeagueMemberIds.length > 0 ? (leagueFullPredsPerMatch[m.id] ?? []) : null,
   }));
 
   // Leaderboard
-  const jornadaMap = Object.fromEntries((jornadaRes.data ?? []).map((r) => [r.user_id, r.total_points]));
-  const bracketMap = Object.fromEntries((bracketRes.data ?? []).map((r) => [r.user_id, r.total_points]));
 
   const leaderboardBase: LeaderboardEntry[] = firstLeague && firstLeagueMemberIds.length > 0
     ? firstLeagueMembers.map((m) => {
@@ -255,6 +325,21 @@ export default async function DashboardPage() {
           </div>
         </Link>
       </section>
+
+      {/* Live matches */}
+      {liveMatchCards.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+            <h2 className="font-bold text-lg text-green-400">En vivo</h2>
+          </div>
+          <div className="space-y-2">
+            {liveMatchCards.map((match) => (
+              <UpcomingMatchCard key={match.id} match={match} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Two-column layout: matches | leagues */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

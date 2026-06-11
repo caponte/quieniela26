@@ -9,7 +9,7 @@ interface PredRow { match_id: string }
 
 interface JornadaSummary {
   slug: JornadaSlug
-  firstMatchDate: Date | null
+  hasUnlockedMatch: boolean
   totalMatches: number
   predictedMatches: number
 }
@@ -51,10 +51,10 @@ export default async function MatchOverviewPage() {
       jornadaMatches = jornadaMatches.filter((m) => m.stage === info.stage)
     }
 
-    const firstMatchDate = jornadaMatches[0] ? new Date(jornadaMatches[0].match_date) : null
+    const hasUnlockedMatch = jornadaMatches.some((m) => !isMatchLocked(new Date(m.match_date)))
     const predictedMatches = jornadaMatches.filter((m) => predictedSet.has(m.id)).length
 
-    return { slug, firstMatchDate, totalMatches: jornadaMatches.length, predictedMatches }
+    return { slug, hasUnlockedMatch, totalMatches: jornadaMatches.length, predictedMatches }
   })
 
   return (
@@ -71,7 +71,7 @@ export default async function MatchOverviewPage() {
       <div className="flex flex-col gap-3">
         {summaries.map((summary) => {
           const info = JORNADA_INFO[summary.slug]
-          const locked = summary.firstMatchDate ? isMatchLocked(summary.firstMatchDate) : false
+          const locked = summary.totalMatches > 0 && !summary.hasUnlockedMatch
           const noMatches = summary.totalMatches === 0
           const allDone = summary.predictedMatches === summary.totalMatches && summary.totalMatches > 0
 

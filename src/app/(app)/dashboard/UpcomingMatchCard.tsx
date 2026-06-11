@@ -3,12 +3,27 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { LivePointsTooltip } from "@/components/LivePointsTooltip"
 
 interface Team {
   id: string
   name: string
   flag_url: string | null
   fifa_code: string
+}
+
+export interface LeagueFullPred {
+  userId: string
+  name: string
+  avatarUrl: string | null
+  homeGoals: number
+  awayGoals: number
+  firstTeamToScoreId: string | null
+  firstGoalScorer: string | null
+  isMe: boolean
+  totalPoints: number
+  livePoints: number | null
+  liveBreakdown: import("@/lib/utils/livePoints").LivePointsBreakdown | null
 }
 
 export interface MatchCardData {
@@ -32,6 +47,7 @@ export interface MatchCardData {
   jornadaSlug: string
   leaguePredictors: { name: string; avatarUrl: string | null }[] | null
   leagueTotal: number | null
+  leagueFullPreds: LeagueFullPred[] | null
 }
 
 const DAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"]
@@ -60,7 +76,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
     : null
 
   return (
-    <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden transition-colors hover:border-white/20">
+    <div className="bg-(--color-surface) border border-(--color-border) rounded-xl transition-colors hover:border-white/20">
       {/* Main row */}
       <button
         className="w-full text-left px-4 py-3 flex items-center gap-3"
@@ -76,7 +92,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
         <div className="flex flex-col items-center shrink-0 gap-0.5 min-w-[110px]">
           {/* Real score or vs */}
           {isLive ? (
-            <span className="text-base font-bold tabular-nums text-red-400">
+            <span className="text-base font-bold tabular-nums text-green-400">
               {match.home_score} – {match.away_score}
             </span>
           ) : isFinished ? (
@@ -89,7 +105,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
 
           {/* Stage · match number */}
           <span className="text-[10px] text-(--color-muted) leading-tight text-center">
-            {isLive && <span className="text-red-400 font-semibold">EN VIVO · </span>}
+            {isLive && <span className="text-green-400 font-semibold">EN VIVO · </span>}
             {match.group_name ? `Grupo ${match.group_name}` : stageLabel(match.stage)}
             {" · "}M{match.match_number}
           </span>
@@ -156,60 +172,111 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
 
       {/* Dropdown */}
       {open && (
-        <div className="border-t border-(--color-border) px-4 py-3 space-y-3">
+        <div className="border-t border-(--color-border) py-3 space-y-3">
           {pred ? (
             <>
-              <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">Tu pronóstico</p>
-
-              {/* Score big */}
-              <div className="flex items-center justify-center gap-4">
-                <div className="flex items-center gap-2">
-                  <TeamFlag team={match.home_team} size={20} />
-                  <span className="text-sm text-(--color-muted)">{match.home_team?.fifa_code}</span>
+              <div className="px-4">
+                <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-2">Tu pronóstico</p>
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <div className="flex items-center gap-2">
+                    <TeamFlag team={match.home_team} size={20} />
+                    <span className="text-sm text-(--color-muted)">{match.home_team?.fifa_code}</span>
+                  </div>
+                  <span className="text-2xl font-bold tabular-nums text-(--color-accent)">
+                    {pred.home_goals} – {pred.away_goals}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-(--color-muted)">{match.away_team?.fifa_code}</span>
+                    <TeamFlag team={match.away_team} size={20} />
+                  </div>
                 </div>
-                <span className="text-2xl font-bold tabular-nums text-(--color-accent)">
-                  {pred.home_goals} – {pred.away_goals}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-(--color-muted)">{match.away_team?.fifa_code}</span>
-                  <TeamFlag team={match.away_team} size={20} />
+                <div className="grid grid-cols-3 gap-2">
+                  <DetailCell label="Primer gol" value={firstScorerTeam ?? "Ninguno"} />
+                  <DetailCell label="Penales" value={pred.has_penalty ? "Sí" : "No"} />
+                  <DetailCell label="Goleador" value={pred.first_goal_scorer ?? "—"} />
                 </div>
               </div>
 
-              {/* Details grid */}
-              <div className="grid grid-cols-3 gap-2">
-                <DetailCell
-                  label="Primer gol"
-                  value={firstScorerTeam ?? "Ninguno"}
-                />
-                <DetailCell
-                  label="Penales"
-                  value={pred.has_penalty ? "Sí" : "No"}
-                />
-                <DetailCell
-                  label="Goleador"
-                  value={pred.first_goal_scorer ?? "—"}
-                />
-              </div>
-
-              <Link
-                href={`/predict/match/${match.jornadaSlug}`}
-                className="block text-center text-xs text-(--color-accent) hover:underline pt-1"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Editar predicción →
-              </Link>
+              {!isLive && !isFinished && (
+                <div className="px-4 pt-1">
+                  <Link
+                    href={`/predict/match/${match.jornadaSlug}`}
+                    className="block text-center text-xs text-(--color-accent) hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Editar predicción →
+                  </Link>
+                </div>
+              )}
             </>
           ) : (
-            <div className="text-center py-1">
+            <div className="px-4 text-center py-1">
               <p className="text-sm text-(--color-muted) mb-2">Aún no has predicho este partido.</p>
-              <Link
-                href={`/predict/match/${match.jornadaSlug}`}
-                className="inline-block text-sm bg-(--color-accent) text-black font-semibold px-4 py-1.5 rounded-lg hover:opacity-90 transition"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Predecir ahora →
-              </Link>
+              {!isLive && !isFinished && (
+                <Link
+                  href={`/predict/match/${match.jornadaSlug}`}
+                  className="inline-block text-sm bg-(--color-accent) text-black font-semibold px-4 py-1.5 rounded-lg hover:opacity-90 transition"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Predecir ahora →
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* League predictions table */}
+          {match.leagueFullPreds && match.leagueFullPreds.length > 0 && (
+            <div className="border-t border-(--color-border)">
+              <div className="px-4 pt-3 pb-1">
+                <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">Liga</p>
+              </div>
+              <div className="divide-y divide-white/6">
+                {[...match.leagueFullPreds].sort((a, b) => {
+                  const aScore = a.livePoints !== null ? a.totalPoints + a.livePoints : a.totalPoints
+                  const bScore = b.livePoints !== null ? b.totalPoints + b.livePoints : b.totalPoints
+                  return bScore - aScore
+                }).map((p) => {
+                  const firstTeam = p.firstTeamToScoreId === match.home_team?.id
+                    ? match.home_team?.fifa_code
+                    : p.firstTeamToScoreId === match.away_team?.id
+                      ? match.away_team?.fifa_code
+                      : null
+                  return (
+                    <div key={p.userId} className={`flex items-center gap-3 px-4 py-2 ${p.isMe ? "bg-accent/5" : ""}`}>
+                      {p.avatarUrl ? (
+                        <Image src={p.avatarUrl} alt={p.name} width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-bold shrink-0">
+                          {p.name[0]?.toUpperCase() ?? "?"}
+                        </div>
+                      )}
+                      <span className={`text-xs flex-1 min-w-0 truncate ${p.isMe ? "font-semibold text-(--color-accent)" : "text-(--color-muted)"}`}>
+                        {p.name}
+                      </span>
+                      <span className="text-xs font-bold tabular-nums shrink-0">
+                        {p.homeGoals} – {p.awayGoals}
+                      </span>
+                      <span className="text-[11px] text-(--color-muted) w-20 text-right truncate shrink-0">
+                        {p.firstGoalScorer ?? (firstTeam ?? "—")}
+                      </span>
+                      {p.livePoints !== null && p.liveBreakdown ? (
+                        <div className="relative group shrink-0">
+                          <span className="text-[11px] font-bold tabular-nums text-green-400 cursor-default">
+                            {p.totalPoints + p.livePoints} <span className="text-green-400">pts</span>
+                          </span>
+                          <div className="hidden group-hover:block">
+                            <LivePointsTooltip breakdown={p.liveBreakdown} totalAccum={p.totalPoints} />
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-bold tabular-nums text-(--color-accent) w-6 text-right shrink-0">
+                          {p.totalPoints}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
