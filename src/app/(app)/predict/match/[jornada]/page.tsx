@@ -178,19 +178,17 @@ export default async function JornadaPage({ params, searchParams }: Props) {
       supabase
         .from("leaderboard_jornada")
         .select("user_id, total_points")
-        .is("league_id", null)
         .in("user_id", memberIds) as unknown as Promise<{ data: { user_id: string; total_points: number }[] | null }>,
 
       supabase
         .from("leaderboard_bracket")
         .select("user_id, total_points")
-        .is("league_id", null)
         .in("user_id", memberIds) as unknown as Promise<{ data: { user_id: string; total_points: number }[] | null }>,
     ])
 
     const profileMap = Object.fromEntries((profilesRes.data ?? []).map((u) => [u.id, u]))
-    const jornadaMap = Object.fromEntries((jornadaPtsRes.data ?? []).map((r) => [r.user_id, r.total_points]))
-    const bracketMap = Object.fromEntries((bracketPtsRes.data ?? []).map((r) => [r.user_id, r.total_points]))
+    const jornadaMap = (jornadaPtsRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {})
+    const bracketMap = (bracketPtsRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {})
 
     // Deduplicate: keep only the last prediction per (user_id, match_id)
     const seen = new Set<string>()

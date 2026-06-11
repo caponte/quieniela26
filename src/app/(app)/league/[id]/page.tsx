@@ -91,7 +91,6 @@ export default async function LeagueDetailPage({ params }: Props) {
       ? (supabase
           .from("leaderboard_jornada")
           .select("user_id, total_points")
-          .is("league_id", null)
           .in("user_id", memberIds) as unknown as Promise<{ data: JornadaRow[] | null }>)
       : Promise.resolve({ data: [] as JornadaRow[] }),
 
@@ -99,7 +98,6 @@ export default async function LeagueDetailPage({ params }: Props) {
       ? (supabase
           .from("leaderboard_bracket")
           .select("user_id, total_points")
-          .is("league_id", null)
           .in("user_id", memberIds) as unknown as Promise<{ data: BracketRow[] | null }>)
       : Promise.resolve({ data: [] as BracketRow[] }),
 
@@ -122,8 +120,8 @@ export default async function LeagueDetailPage({ params }: Props) {
   ])
 
   const userMap = Object.fromEntries((usersResult.data ?? []).map((u) => [u.id, u]))
-  const jornadaMap = Object.fromEntries((jornadaResult.data ?? []).map((r) => [r.user_id, r.total_points]))
-  const bracketMap = Object.fromEntries((bracketResult.data ?? []).map((r) => [r.user_id, r.total_points]))
+  const jornadaMap = (jornadaResult.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {})
+  const bracketMap = (bracketResult.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {})
   const bracketPredictors = new Set((bracketPredsResult.data ?? []).map((r) => r.user_id))
   const upcomingMatches = upcomingMatchesResult.data ?? []
   const upcomingMatchIds = upcomingMatches.map((m) => m.id)

@@ -201,11 +201,11 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: [] as UserRow[] }),
 
     firstLeagueMemberIds.length
-      ? supabase.from("leaderboard_jornada").select("user_id, total_points").is("league_id", null).in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: PtsRow[] | null }>
+      ? supabase.from("leaderboard_jornada").select("user_id, total_points").in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: PtsRow[] | null }>
       : Promise.resolve({ data: [] as PtsRow[] }),
 
     firstLeagueMemberIds.length
-      ? supabase.from("leaderboard_bracket").select("user_id, total_points").is("league_id", null).in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: PtsRow[] | null }>
+      ? supabase.from("leaderboard_bracket").select("user_id, total_points").in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: PtsRow[] | null }>
       : Promise.resolve({ data: [] as PtsRow[] }),
 
     firstLeagueMemberIds.length && allPredMatchIds.length
@@ -220,8 +220,8 @@ export default async function DashboardPage() {
   ]);
 
   const userMap = Object.fromEntries((usersRes.data ?? []).map((u) => [u.id, u]));
-  const jornadaMap = Object.fromEntries((jornadaRes.data ?? []).map((r) => [r.user_id, r.total_points]));
-  const bracketMap = Object.fromEntries((bracketRes.data ?? []).map((r) => [r.user_id, r.total_points]));
+  const jornadaMap = (jornadaRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {});
+  const bracketMap = (bracketRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {});
 
   // League predictors per match (deduplicated — NULL unique constraint doesn't hold in Postgres)
   const leaguePredsPerMatch: Record<string, { name: string; avatarUrl: string | null }[]> = {};
