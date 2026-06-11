@@ -7,7 +7,7 @@ import {
 } from "@/lib/utils/jornada"
 import type { JornadaSlug } from "@/lib/utils/jornada"
 import MatchdayForm from "./MatchdayForm"
-import type { MatchWithTeams, MatchPredictionRow, PlayerRow } from "@/lib/utils/matchTypes"
+import type { MatchWithTeams, MatchPredictionRow, PlayerRow, MatchResultEvents } from "@/lib/utils/matchTypes"
 import { Breadcrumb } from "@/components/Breadcrumb"
 import type { LeagueMemberPred } from "./MatchdayForm"
 import { calculateLivePoints } from "@/lib/utils/livePoints"
@@ -111,6 +111,36 @@ export default async function JornadaPage({ params }: Props) {
     (rawPredictions ?? []).map((p) => [p.match_id, p])
   )
 
+  // Fetch match events (first goal + penalties) for live and finished matches
+  const activeMatchIds = rawMatches.filter((m) => m.status === "live" || m.status === "finished").map((m) => m.id)
+  const matchResultEventsMap: Record<string, MatchResultEvents> = {}
+  const liveStateMap: Record<string, LiveMatchState> = {}
+  if (activeMatchIds.length > 0) {
+    const { data: activeEvents } = await supabase
+      .from("match_events")
+      .select("match_id, team_id, player_name, is_first_goal, type")
+      .in("match_id", activeMatchIds)
+      .eq("is_own_goal", false) as unknown as { data: { match_id: string; team_id: string; player_name: string | null; is_first_goal: boolean; type: string }[] | null }
+
+    for (const m of rawMatches.filter((m) => m.status === "live" || m.status === "finished")) {
+      const evts = (activeEvents ?? []).filter((e) => e.match_id === m.id)
+      const firstGoalEvt = evts.find((e) => e.is_first_goal)
+      matchResultEventsMap[m.id] = {
+        firstGoalScorerName: firstGoalEvt?.player_name ?? null,
+        firstGoalTeamId: firstGoalEvt?.team_id ?? null,
+        hasPenalty: evts.some((e) => e.type === "penalty"),
+      }
+      if (m.status === "live") {
+        liveStateMap[m.id] = {
+          homeScore: m.home_score ?? 0,
+          awayScore: m.away_score ?? 0,
+          firstGoalTeamId: firstGoalEvt?.team_id ?? null,
+          firstGoalScorerName: firstGoalEvt?.player_name ?? null,
+        }
+      }
+    }
+  }
+
   // Fetch league members' predictions
   const { data: leagueMemberships } = await supabase
     .from("league_members")
@@ -133,10 +163,10 @@ export default async function JornadaPage({ params }: Props) {
     const [leaguePredsRes, profilesRes, jornadaPtsRes, bracketPtsRes] = await Promise.all([
       supabase
         .from("match_predictions")
-        .select("user_id, match_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, has_penalty, match_points(total_points)")
+        .select("user_id, match_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, has_penalty, match_points(total_points, breakdown)")
         .in("match_id", matchIds)
         .in("user_id", memberIds)
-        .or(`league_id.is.null,league_id.eq.${firstLeagueId}`) as unknown as Promise<{ data: { user_id: string; match_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean; match_points: { total_points: number } | null }[] | null }>,
+        .or(`league_id.is.null,league_id.eq.${firstLeagueId}`) as unknown as Promise<{ data: { user_id: string; match_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean; match_points: { total_points: number; breakdown: Record<string, boolean> | null } | null }[] | null }>,
 
       supabase
         .from("users")
@@ -160,27 +190,6 @@ export default async function JornadaPage({ params }: Props) {
     const jornadaMap = Object.fromEntries((jornadaPtsRes.data ?? []).map((r) => [r.user_id, r.total_points]))
     const bracketMap = Object.fromEntries((bracketPtsRes.data ?? []).map((r) => [r.user_id, r.total_points]))
 
-    // Fetch first-goal events for live matches in this jornada
-    const liveMatchIds = rawMatches.filter((m) => m.status === "live").map((m) => m.id)
-    const liveStateMap: Record<string, LiveMatchState> = {}
-    if (liveMatchIds.length > 0) {
-      const { data: firstGoalEvents } = await supabase
-        .from("match_events")
-        .select("match_id, team_id, player_name")
-        .in("match_id", liveMatchIds)
-        .eq("is_first_goal", true)
-        .eq("is_own_goal", false) as unknown as { data: { match_id: string; team_id: string; player_name: string | null }[] | null }
-      for (const m of rawMatches.filter((m) => m.status === "live")) {
-        const evt = (firstGoalEvents ?? []).find((e) => e.match_id === m.id)
-        liveStateMap[m.id] = {
-          homeScore: m.home_score ?? 0,
-          awayScore: m.away_score ?? 0,
-          firstGoalTeamId: evt?.team_id ?? null,
-          firstGoalScorerName: evt?.player_name ?? null,
-        }
-      }
-    }
-
     // Deduplicate: keep only the last prediction per (user_id, match_id)
     const seen = new Set<string>()
     for (const pred of [...(leaguePredsRes.data ?? [])].reverse()) {
@@ -202,6 +211,7 @@ export default async function JornadaPage({ params }: Props) {
         isMe: pred.user_id === user.id,
         totalPoints: (jornadaMap[pred.user_id] ?? 0) + (bracketMap[pred.user_id] ?? 0),
         matchPoints: pred.match_points?.total_points ?? null,
+        finishedBreakdown: pred.match_points?.breakdown ?? null,
         livePoints: liveState
           ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer }, liveState).total
           : null,
@@ -228,6 +238,7 @@ export default async function JornadaPage({ params }: Props) {
         predictionsByMatchId={predictionsByMatchId}
         players={rawPlayers ?? []}
         leaguePredsByMatchId={leaguePredsByMatchId}
+        matchResultEventsByMatchId={matchResultEventsMap}
       />
     </>
   )

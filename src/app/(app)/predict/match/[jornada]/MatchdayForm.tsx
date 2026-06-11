@@ -6,7 +6,7 @@ import { saveMatchPrediction } from "@/lib/actions/match"
 import { isMatchLocked } from "@/lib/utils/jornada"
 import { LivePointsTooltip } from "@/components/LivePointsTooltip"
 import type { JornadaSlug } from "@/lib/utils/jornada"
-import type { MatchWithTeams, MatchPredictionRow, PlayerRow, Team } from "@/lib/utils/matchTypes"
+import type { MatchWithTeams, MatchPredictionRow, PlayerRow, Team, MatchResultEvents } from "@/lib/utils/matchTypes"
 
 type Match = MatchWithTeams
 type Player = PlayerRow
@@ -24,9 +24,19 @@ export interface LeagueMemberPred {
   isMe: boolean
   totalPoints: number
   matchPoints: number | null
+  finishedBreakdown: Record<string, boolean> | null
   livePoints: number | null
   liveBreakdown: import("@/lib/utils/livePoints").LivePointsBreakdown | null
 }
+
+const FINISHED_BREAKDOWN_ROWS: { key: string; label: string; pts: number }[] = [
+  { key: "exact_score",         label: "Marcador exacto",          pts: 3 },
+  { key: "home_goals_exact",    label: "Goles local exactos",      pts: 1 },
+  { key: "away_goals_exact",    label: "Goles visita exactos",     pts: 1 },
+  { key: "first_team_to_score", label: "Primer equipo en marcar",  pts: 1 },
+  { key: "first_goal_scorer",   label: "Primer goleador",          pts: 3 },
+  { key: "has_penalty",         label: "Penales (sí/no)",          pts: 1 },
+]
 
 interface MatchState {
   homeGoals: number
@@ -46,6 +56,7 @@ interface Props {
   predictionsByMatchId: Record<string, Prediction>
   players: Player[]
   leaguePredsByMatchId: Record<string, LeagueMemberPred[]>
+  matchResultEventsByMatchId: Record<string, MatchResultEvents>
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -80,7 +91,7 @@ const POS_ORDER: Record<string, number> = { FWD: 0, MID: 1, DEF: 2, GK: 3 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId }: Props) {
+export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId, matchResultEventsByMatchId }: Props) {
   const [current, setCurrent] = useState(0)
   const [states, setStates] = useState<MatchState[]>(() =>
     matches.map((m) => initState(m, predictionsByMatchId[m.id]))
@@ -225,6 +236,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
             state={state}
             hasPrediction={saved.has(current)}
             leaguePreds={leaguePredsByMatchId[match.id] ?? []}
+            resultEvents={matchResultEventsByMatchId[match.id] ?? null}
           />
         ) : (
           <>
@@ -511,12 +523,14 @@ function MiniFlag({ url, name }: { url: string | null; name: string }) {
   )
 }
 
-function LockedMatchSummary({ match, state, hasPrediction, leaguePreds }: {
+function LockedMatchSummary({ match, state, hasPrediction, leaguePreds, resultEvents }: {
   match: Match
   state: MatchState
   hasPrediction: boolean
   leaguePreds: LeagueMemberPred[]
+  resultEvents: MatchResultEvents | null
 }) {
+  const [openBreakdownId, setOpenBreakdownId] = useState<string | null>(null)
   const isLive = match.status === "live"
   const isFinished = match.status === "finished"
   const hasRealResult = (isLive || isFinished) && match.home_score !== null && match.away_score !== null
@@ -550,6 +564,43 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds }: {
               <span className="text-xs text-(--color-muted)">{match.away_team?.name ?? "—"}</span>
             </div>
           </div>
+
+          {/* Match result events */}
+          {!isLive && resultEvents && (
+            <div className="mt-3 pt-3 border-t border-white/8 flex flex-col gap-1.5 text-xs text-(--color-muted)">
+              <div className="flex items-center gap-2">
+                <span className="w-4 text-center">⚽</span>
+                <span>Primer goleador:</span>
+                <span className="text-white font-medium">{resultEvents.firstGoalScorerName ?? "Sin goles"}</span>
+              </div>
+              {resultEvents.firstGoalTeamId && (
+                <div className="flex items-center gap-2">
+                  <span className="w-4 text-center">🏳️</span>
+                  <span>Primer equipo:</span>
+                  <span className="flex items-center gap-1.5 text-white font-medium">
+                    {(() => {
+                      const team = resultEvents.firstGoalTeamId === match.home_team?.id
+                        ? match.home_team
+                        : resultEvents.firstGoalTeamId === match.away_team?.id
+                          ? match.away_team
+                          : null
+                      return team ? (
+                        <>
+                          {team.flag_url && <Image src={team.flag_url} alt={team.name} width={16} height={11} className="rounded-sm object-cover" />}
+                          {team.fifa_code}
+                        </>
+                      ) : "—"
+                    })()}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="w-4 text-center">🟨</span>
+                <span>Penal:</span>
+                <span className="text-white font-medium">{resultEvents.hasPenalty ? "Sí" : "No"}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -570,50 +621,80 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds }: {
                 : pred.firstTeamToScoreId === match.away_team?.id
                   ? match.away_team?.fifa_code
                   : null
+              const isBreakdownOpen = openBreakdownId === pred.userId
               return (
-                <div
-                  key={pred.userId}
-                  className={`flex items-center gap-3 px-4 py-2.5 ${pred.isMe ? "bg-accent/5" : ""}`}
-                >
-                  {/* Avatar */}
-                  {pred.avatarUrl ? (
-                    <Image src={pred.avatarUrl} alt={pred.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover shrink-0" />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold shrink-0">
-                      {pred.name[0]?.toUpperCase() ?? "?"}
-                    </div>
-                  )}
+                <div key={pred.userId}>
+                  <div
+                    className={`flex items-center gap-3 px-4 py-2.5 ${pred.isMe ? "bg-accent/5" : ""}`}
+                  >
+                    {/* Avatar */}
+                    {pred.avatarUrl ? (
+                      <Image src={pred.avatarUrl} alt={pred.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold shrink-0">
+                        {pred.name[0]?.toUpperCase() ?? "?"}
+                      </div>
+                    )}
 
-                  {/* Name */}
-                  <span className={`text-sm flex-1 min-w-0 truncate ${pred.isMe ? "font-semibold text-(--color-accent)" : ""}`}>
-                    {pred.name}
-                  </span>
+                    {/* Name */}
+                    <span className={`text-sm flex-1 min-w-0 truncate ${pred.isMe ? "font-semibold text-(--color-accent)" : ""}`}>
+                      {pred.name}
+                    </span>
 
-                  {/* Score */}
-                  <span className="text-sm font-bold tabular-nums shrink-0">
-                    {pred.homeGoals} – {pred.awayGoals}
-                  </span>
+                    {/* Score */}
+                    <span className="text-sm font-bold tabular-nums shrink-0">
+                      {pred.homeGoals} – {pred.awayGoals}
+                    </span>
 
-                  {/* First scorer */}
-                  <span className="text-xs text-(--color-muted) w-24 text-right truncate shrink-0">
-                    {pred.firstGoalScorer ?? (firstTeamName ?? "—")}
-                  </span>
+                    {/* First scorer */}
+                    <span className="text-xs text-(--color-muted) w-24 text-right truncate shrink-0">
+                      {pred.firstGoalScorer ?? (firstTeamName ?? "—")}
+                    </span>
 
-                  {/* Points */}
-                  {pred.livePoints !== null && pred.liveBreakdown ? (
-                    <div className="relative group shrink-0">
-                      <span className="text-xs font-bold tabular-nums text-green-400 cursor-default">
-                        {pred.totalPoints + pred.livePoints} <span className="text-green-400">pts</span>
-                      </span>
-                      <div className="hidden group-hover:block">
-                        <LivePointsTooltip breakdown={pred.liveBreakdown} totalAccum={pred.totalPoints} />
+                    {/* Points */}
+                    {pred.livePoints !== null && pred.liveBreakdown ? (
+                      <div className="relative group shrink-0">
+                        <span className="text-xs font-bold tabular-nums text-green-400 cursor-default">
+                          {pred.totalPoints + pred.livePoints} <span className="text-green-400">pts</span>
+                        </span>
+                        <div className="hidden group-hover:block">
+                          <LivePointsTooltip breakdown={pred.liveBreakdown} totalAccum={pred.totalPoints} />
+                        </div>
+                      </div>
+                    ) : pred.matchPoints !== null ? (
+                      <button
+                        type="button"
+                        onClick={() => setOpenBreakdownId(isBreakdownOpen ? null : pred.userId)}
+                        className="flex items-center gap-0.5 text-xs font-bold tabular-nums text-(--color-accent) shrink-0 cursor-pointer select-none"
+                      >
+                        {pred.matchPoints}
+                        <span className={`ml-0.5 text-[10px] transition-transform duration-150 ${isBreakdownOpen ? "rotate-180" : ""}`}>▾</span>
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {/* Finished breakdown panel */}
+                  {isBreakdownOpen && pred.finishedBreakdown && (
+                    <div className="px-4 pb-3 pt-1 bg-white/3 border-t border-white/6 space-y-1">
+                      {FINISHED_BREAKDOWN_ROWS.map((row) => {
+                        const earned = pred.finishedBreakdown![row.key] === true
+                        return (
+                          <div key={row.key} className="flex justify-between gap-2 text-xs">
+                            <span className={earned ? "text-emerald-400" : "text-white/30"}>
+                              {earned ? "✓" : "✗"} {row.label}
+                            </span>
+                            <span className={`font-bold ${earned ? "text-emerald-400" : "text-white/20"}`}>
+                              {earned ? `+${row.pts}` : "+0"}
+                            </span>
+                          </div>
+                        )
+                      })}
+                      <div className="flex justify-between gap-2 text-xs pt-1 border-t border-white/8 mt-1">
+                        <span className="text-white/60">Total este partido</span>
+                        <span className="font-bold text-white">{pred.matchPoints}</span>
                       </div>
                     </div>
-                  ) : pred.matchPoints !== null ? (
-                    <span className="text-xs font-bold tabular-nums text-(--color-accent) w-8 text-right shrink-0">
-                      {pred.matchPoints}
-                    </span>
-                  ) : null}
+                  )}
                 </div>
               )
             })}

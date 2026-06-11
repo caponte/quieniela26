@@ -67,7 +67,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Step 1: core data in parallel
-  const [profileResult, matchesResult, liveMatchesResult, leaguesResult, groupMatchesResult] = await Promise.all([
+  const [profileResult, matchesResult, liveMatchesResult, leaguesResult, groupMatchesResult, finishedMatchesResult] = await Promise.all([
     supabase.from("users").select("name").eq("id", user!.id).single(),
 
     supabase
@@ -101,11 +101,23 @@ export default async function DashboardPage() {
       .from("matches")
       .select("id, match_date, group_name")
       .eq("stage", "group") as unknown as Promise<{ data: { id: string; match_date: string; group_name: string | null }[] | null }>,
+
+    supabase
+      .from("matches")
+      .select(
+        `id, match_number, match_date, stage, group_name, home_score, away_score, status,
+         home_team:teams!matches_home_team_id_fkey(id, name, flag_url, fifa_code),
+         away_team:teams!matches_away_team_id_fkey(id, name, flag_url, fifa_code)`
+      )
+      .eq("status", "finished")
+      .order("match_date", { ascending: false })
+      .limit(12) as unknown as Promise<{ data: MatchRow[] | null }>,
   ]);
 
   const profile = profileResult.data as { name: string } | null;
   const matches = matchesResult.data ?? [];
   const liveMatches = liveMatchesResult.data ?? [];
+  const finishedMatches = (finishedMatchesResult.data ?? []).slice().reverse(); // chronological
 
   // Fetch first-goal events for live matches
   const liveMatchStateMap: Record<string, LiveMatchState> = {};
@@ -144,9 +156,10 @@ export default async function DashboardPage() {
 
   const liveMatchIds = liveMatches.map((m) => m.id);
   const allPredMatchIds = [...new Set([...matchIds, ...liveMatchIds])];
+  const finishedMatchIds = finishedMatches.map((m) => m.id);
 
-  // Step 2: user's own predictions + first league members (parallel)
-  const [rawPredsResult, firstLeagueMembersResult] = await Promise.all([
+  // Step 2: user's own predictions + first league members + finished match points (parallel)
+  const [rawPredsResult, firstLeagueMembersResult, finishedPtsResult] = await Promise.all([
     allPredMatchIds.length
       ? supabase
           .from("match_predictions")
@@ -162,7 +175,20 @@ export default async function DashboardPage() {
           .select("user_id, role")
           .eq("league_id", firstLeague.id) as unknown as Promise<{ data: MemberRow[] | null }>
       : Promise.resolve({ data: [] as MemberRow[] }),
+
+    finishedMatchIds.length
+      ? supabase
+          .from("match_predictions")
+          .select("match_id, home_goals, away_goals, match_points(total_points)")
+          .eq("user_id", user!.id)
+          .is("league_id", null)
+          .in("match_id", finishedMatchIds) as unknown as Promise<{ data: { match_id: string; home_goals: number; away_goals: number; match_points: { total_points: number } | null }[] | null }>
+      : Promise.resolve({ data: [] as { match_id: string; home_goals: number; away_goals: number; match_points: { total_points: number } | null }[] }),
   ]);
+
+  const finishedPredMap = Object.fromEntries(
+    (finishedPtsResult.data ?? []).map((p) => [p.match_id, p])
+  );
 
   const predByMatchId = Object.fromEntries((rawPredsResult.data ?? []).map((p) => [p.match_id, p]));
   const firstLeagueMembers = firstLeagueMembersResult.data ?? [];
@@ -337,6 +363,40 @@ export default async function DashboardPage() {
             {liveMatchCards.map((match) => (
               <UpcomingMatchCard key={match.id} match={match} />
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Finished matches */}
+      {finishedMatches.length > 0 && (
+        <section>
+          <h2 className="font-bold text-lg mb-3">Resultados recientes</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory">
+            {finishedMatches.map((m) => {
+              const pred = finishedPredMap[m.id] ?? null;
+              const pts = pred?.match_points?.total_points ?? null;
+              const slug = jornadaSlugForMatch(m, groupRoundIds);
+              return (
+                <Link
+                  key={m.id}
+                  href={`/predict/match/${slug}`}
+                  className="flex-none snap-start bg-(--color-surface) border border-(--color-border) rounded-xl px-3 py-2.5 flex items-center gap-2 hover:border-primary/60 transition-colors"
+                >
+                  {m.home_team?.flag_url
+                    ? <Image src={m.home_team.flag_url} alt={m.home_team.name} width={22} height={15} className="rounded-sm object-cover shrink-0" />
+                    : <div className="w-5.5 h-3.75 bg-white/10 rounded-sm shrink-0" />}
+                  <span className="text-[11px] text-(--color-muted) shrink-0">{m.home_team?.fifa_code ?? "—"}</span>
+                  <span className="text-sm font-bold tabular-nums shrink-0">{m.home_score} – {m.away_score}</span>
+                  <span className="text-[11px] text-(--color-muted) shrink-0">{m.away_team?.fifa_code ?? "—"}</span>
+                  {m.away_team?.flag_url
+                    ? <Image src={m.away_team.flag_url} alt={m.away_team.name} width={22} height={15} className="rounded-sm object-cover shrink-0" />
+                    : <div className="w-5.5 h-3.75 bg-white/10 rounded-sm shrink-0" />}
+                  <span className="text-sm font-bold text-(--color-accent) shrink-0 ml-1">
+                    {pred ? (pts ?? 0) : "—"}<span className="text-[10px] font-normal text-(--color-muted)"> pts</span>
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}

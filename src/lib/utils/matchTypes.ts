@@ -28,6 +28,12 @@ export interface MatchPredictionRow {
   first_goal_scorer_id: string | null
 }
 
+export interface MatchResultEvents {
+  firstGoalScorerName: string | null
+  firstGoalTeamId: string | null
+  hasPenalty: boolean
+}
+
 export interface PlayerRow {
   id: string
   name: string
