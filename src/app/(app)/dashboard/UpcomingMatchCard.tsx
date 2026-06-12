@@ -262,7 +262,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
                       {p.livePoints !== null && p.liveBreakdown ? (
                         <div className="relative group shrink-0">
                           <span className="text-[11px] font-bold tabular-nums text-green-400 cursor-default">
-                            {p.totalPoints + p.livePoints} <span className="text-green-400">pts</span>
+                            +{p.livePoints} <span className="text-green-400">pts</span>
                           </span>
                           <div className="hidden group-hover:block">
                             <LivePointsTooltip breakdown={p.liveBreakdown} totalAccum={p.totalPoints} />

@@ -379,7 +379,7 @@ export default async function DashboardPage() {
               return (
                 <Link
                   key={m.id}
-                  href={`/predict/match/${slug}`}
+                  href={`/predict/match/${slug}?match=${m.id}`}
                   className="flex-none snap-start bg-(--color-surface) border border-(--color-border) rounded-xl px-3 py-2.5 flex items-center gap-2 hover:border-primary/60 transition-colors"
                 >
                   {m.home_team?.flag_url

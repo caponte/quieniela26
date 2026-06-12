@@ -158,7 +158,8 @@ export async function POST(req: NextRequest) {
     const result = await syncMatch(supabase, apiMatch, ourMatch);
     const responsePayload = { test: true, ...result };
     await insertLog(supabase, "test", responsePayload, 1, 1, result.errors);
-    revalidatePath("/", "layout");
+    revalidatePath("/dashboard");
+    revalidatePath("/admin");
     return NextResponse.json(responsePayload);
   }
   // ── END TEST MODE ──────────────────────────────────────────────────────────
@@ -179,9 +180,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!ourMatches || ourMatches.length === 0) {
-    const responsePayload = { synced: 0, message: "No matches to sync" };
-    await insertLog(supabase, body.source === "manual" ? "manual" : "cron", responsePayload, 0, 0);
-    return NextResponse.json(responsePayload);
+    return NextResponse.json({ synced: 0, message: "No matches to sync" });
   }
 
   const dateFrom = now.toISOString().split("T")[0];
@@ -226,7 +225,10 @@ export async function POST(req: NextRequest) {
 
   await insertLog(supabase, source, responsePayload, synced, ourMatches.length, allErrors);
 
-  if (synced > 0) revalidatePath("/", "layout");
+  if (synced > 0) {
+    revalidatePath("/dashboard");
+    revalidatePath("/admin");
+  }
 
   return NextResponse.json({
     synced,
