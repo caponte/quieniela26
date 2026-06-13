@@ -14,6 +14,7 @@ const ROWS: { key: keyof Omit<LivePointsBreakdown, "total">; label: string }[] =
   { key: "awayGoalsExact",   label: "Goles visita exactos" },
   { key: "firstTeamToScore", label: "Primer equipo en marcar" },
   { key: "firstGoalScorer",  label: "Primer goleador"      },
+  { key: "hasPenalty",       label: "Penales (sí/no)"      },
 ]
 
 export function LivePointsTooltip({ breakdown, totalAccum }: Props) {

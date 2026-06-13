@@ -138,6 +138,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
           awayScore: m.away_score ?? 0,
           firstGoalTeamId: firstGoalEvt?.team_id ?? null,
           firstGoalScorerName: firstGoalEvt?.player_name ?? null,
+          hasPenalty: evts.some((e) => e.type === "penalty"),
         }
       }
     }
@@ -213,10 +214,10 @@ export default async function JornadaPage({ params, searchParams }: Props) {
         matchPoints: pred.match_points?.total_points ?? null,
         finishedBreakdown: pred.match_points?.breakdown ?? null,
         livePoints: liveState
-          ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer }, liveState).total
+          ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer, hasPenalty: pred.has_penalty }, liveState).total
           : null,
         liveBreakdown: liveState
-          ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer }, liveState)
+          ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer, hasPenalty: pred.has_penalty }, liveState)
           : null,
       })
     }

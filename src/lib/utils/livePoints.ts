@@ -6,6 +6,7 @@ const PTS = {
   away_goals_exact: 1,
   first_team_to_score: 1,
   first_goal_scorer: 3,
+  has_penalty: 1,
 }
 
 export interface LiveMatchState {
@@ -13,6 +14,7 @@ export interface LiveMatchState {
   awayScore: number
   firstGoalTeamId: string | null   // null = no goals yet
   firstGoalScorerName: string | null
+  hasPenalty: boolean
 }
 
 interface PredData {
@@ -20,6 +22,7 @@ interface PredData {
   awayGoals: number
   firstTeamToScoreId: string | null
   firstGoalScorer: string | null
+  hasPenalty: boolean
 }
 
 export interface LivePointsBreakdown {
@@ -30,6 +33,7 @@ export interface LivePointsBreakdown {
   awayGoalsExact: number   // 1 or 0
   firstTeamToScore: number // 1 or 0
   firstGoalScorer: number  // 3 or 0
+  hasPenalty: number       // 1 or 0
 }
 
 export function calculateLivePoints(pred: PredData, match: LiveMatchState): LivePointsBreakdown {
@@ -55,7 +59,9 @@ export function calculateLivePoints(pred: PredData, match: LiveMatchState): Live
       ? PTS.first_goal_scorer
       : 0
 
-  const total = exactScore + correctWinner + homeGoalsExact + awayGoalsExact + firstTeamToScore + firstGoalScorer
+  const hasPenalty = pred.hasPenalty === match.hasPenalty ? PTS.has_penalty : 0
 
-  return { total, exactScore, correctWinner, homeGoalsExact, awayGoalsExact, firstTeamToScore, firstGoalScorer }
+  const total = exactScore + correctWinner + homeGoalsExact + awayGoalsExact + firstTeamToScore + firstGoalScorer + hasPenalty
+
+  return { total, exactScore, correctWinner, homeGoalsExact, awayGoalsExact, firstTeamToScore, firstGoalScorer, hasPenalty }
 }

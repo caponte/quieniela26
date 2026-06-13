@@ -124,21 +124,22 @@ export default async function DashboardPage() {
   const liveMatchStateMap: Record<string, LiveMatchState> = {};
   if (liveMatches.length > 0) {
     const liveIds = liveMatches.map((m) => m.id);
-    const { data: firstGoalEvents } = await supabase
+    const { data: liveEvents } = await supabase
       .from("match_events")
-      .select("match_id, team_id, player_name")
+      .select("match_id, team_id, player_name, is_first_goal, type")
       .in("match_id", liveIds)
-      .eq("is_first_goal", true)
-      .eq("is_own_goal", false)
-      .limit(liveIds.length) as unknown as { data: { match_id: string; team_id: string; player_name: string | null }[] | null };
+      .or("is_first_goal.eq.true,type.eq.penalty")
+      .eq("is_own_goal", false) as unknown as { data: { match_id: string; team_id: string; player_name: string | null; is_first_goal: boolean; type: string }[] | null };
 
     for (const m of liveMatches) {
-      const evt = (firstGoalEvents ?? []).find((e) => e.match_id === m.id);
+      const matchEvts = (liveEvents ?? []).filter((e) => e.match_id === m.id);
+      const evt = matchEvts.find((e) => e.is_first_goal);
       liveMatchStateMap[m.id] = {
         homeScore: m.home_score ?? 0,
         awayScore: m.away_score ?? 0,
         firstGoalTeamId: evt?.team_id ?? null,
         firstGoalScorerName: evt?.player_name ?? null,
+        hasPenalty: matchEvts.some((e) => e.type === "penalty"),
       };
     }
   }
@@ -248,10 +249,10 @@ export default async function DashboardPage() {
       isMe: p.user_id === user!.id,
       totalPoints: (jornadaMap[p.user_id] ?? 0) + (bracketMap[p.user_id] ?? 0),
       livePoints: liveMatchStateMap[p.match_id]
-        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: p.first_goal_scorer }, liveMatchStateMap[p.match_id]).total
+        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: p.first_goal_scorer, hasPenalty: p.has_penalty }, liveMatchStateMap[p.match_id]).total
         : null,
       liveBreakdown: liveMatchStateMap[p.match_id]
-        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: p.first_goal_scorer }, liveMatchStateMap[p.match_id])
+        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: p.first_goal_scorer, hasPenalty: p.has_penalty }, liveMatchStateMap[p.match_id])
         : null,
     });
   }
