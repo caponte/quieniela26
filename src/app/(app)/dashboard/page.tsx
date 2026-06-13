@@ -4,6 +4,7 @@ import Image from "next/image";
 import bracketImg from "@/assets/img/brackets.png";
 import predictImg from "@/assets/img/predict.png";
 import UpcomingMatchCard from "./UpcomingMatchCard";
+import RecentMatchesScroll from "./RecentMatchesScroll";
 import type { MatchCardData, LeagueFullPred } from "./UpcomingMatchCard";
 import { getGroupRoundMatchIds } from "@/lib/utils/jornada";
 import { BracketCountdown } from "@/components/BracketCountdown";
@@ -371,7 +372,7 @@ export default async function DashboardPage() {
       {finishedMatches.length > 0 && (
         <section>
           <h2 className="font-bold text-lg mb-3">Resultados recientes</h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory">
+          <RecentMatchesScroll>
             {finishedMatches.map((m) => {
               const pred = finishedPredMap[m.id] ?? null;
               const pts = pred?.match_points?.total_points ?? null;
@@ -397,7 +398,7 @@ export default async function DashboardPage() {
                 </Link>
               );
             })}
-          </div>
+          </RecentMatchesScroll>
         </section>
       )}
 
