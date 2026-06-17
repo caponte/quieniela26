@@ -145,7 +145,7 @@ export default async function WrapPage({ params }: Props) {
   const { data: usersData } = await supabase
     .from("users")
     .select("id, name, avatar_url")
-    .in("id", allUserIds)
+    .in("id", allUserIds) as unknown as { data: { id: string; name: string | null; avatar_url: string | null }[] | null }
 
   const nameMap = Object.fromEntries((usersData ?? []).map((u) => [u.id, { name: u.name as string, avatarUrl: u.avatar_url as string | null }]))
 
