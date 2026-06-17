@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import type { MatchWithTeams, Team } from "@/lib/utils/matchTypes"
 import type { MatchStatus, EventType } from "@/lib/supabase/database.types"
 import type { MatchEvent, Player } from "./page"
-import { updateMatchResult, addMatchEvent, deleteMatchEvent } from "@/lib/actions/admin"
+import { updateMatchResult, addMatchEvent, deleteMatchEvent, syncSingleMatch } from "@/lib/actions/admin"
 
 const STATUS_OPTIONS: { value: MatchStatus; label: string }[] = [
   { value: "scheduled", label: "Programado" },
@@ -33,12 +33,36 @@ interface Props {
   awayTeam: Team | null
   events: MatchEvent[]
   players: Player[]
+  fifaMatchId: string | null
 }
 
-export default function MatchAdminPanel({ match, homeTeam, awayTeam, events, players }: Props) {
+export default function MatchAdminPanel({ match, homeTeam, awayTeam, events, players, fifaMatchId }: Props) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+
+  // Sync state
+  const [syncPending, setSyncPending] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  function handleSync() {
+    setSyncResult(null)
+    setSyncPending(true)
+    syncSingleMatch(match.id).then((res) => {
+      setSyncPending(false)
+      if (res.error) {
+        setSyncResult({ ok: false, msg: res.error })
+      } else {
+        const d = res.data as any
+        setSyncResult({ ok: true, msg: `✓ ${d.newStatus} · ${d.score}` })
+        // Update local form state so the editor reflects the synced values
+        const [home, away] = (d.score as string).split("-")
+        setHomeScore(home ?? "")
+        setAwayScore(away ?? "")
+        setStatus(d.newStatus)
+      }
+    })
+  }
 
   // Score editor state
   const [homeScore, setHomeScore] = useState<string>(match.home_score?.toString() ?? "")
@@ -110,6 +134,30 @@ export default function MatchAdminPanel({ match, homeTeam, awayTeam, events, pla
 
   return (
     <div className="space-y-8">
+      {/* FIFA Sync */}
+      <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+        <h2 className="font-semibold mb-1">Sync FIFA</h2>
+        <p className="text-xs text-(--color-muted) mb-4">
+          {fifaMatchId
+            ? `Sincroniza score, estado y goles desde api.fifa.com (ID ${fifaMatchId}).`
+            : "Este partido no tiene fifa_match_id — corre npm run map-fifa primero."}
+        </p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleSync}
+            disabled={syncPending || !fifaMatchId}
+            className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-500 disabled:opacity-40 transition-colors"
+          >
+            {syncPending ? "Sincronizando…" : "Sync desde FIFA"}
+          </button>
+          {syncResult && (
+            <span className={`text-sm font-mono ${syncResult.ok ? "text-green-400" : "text-red-400"}`}>
+              {syncResult.msg}
+            </span>
+          )}
+        </div>
+      </section>
+
       {/* Score & Status editor */}
       <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
         <h2 className="font-semibold mb-5">Resultado y estado</h2>
@@ -194,7 +242,7 @@ export default function MatchAdminPanel({ match, homeTeam, awayTeam, events, pla
                     <div className="flex gap-2 mt-0.5 flex-wrap">
                       {ev.is_first_goal && <span className="text-xs text-yellow-400">1er gol</span>}
                       {ev.is_own_goal && <span className="text-xs text-red-400">Autogol</span>}
-                      {ev.type === "penalty" && ev.penalty_scored !== null && (
+                      {ev.penalty_scored !== null && (
                         <span className={`text-xs ${ev.penalty_scored ? "text-green-400" : "text-red-400"}`}>
                           Penal {ev.penalty_scored ? "anotado" : "fallado"}
                         </span>

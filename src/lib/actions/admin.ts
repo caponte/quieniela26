@@ -119,3 +119,38 @@ export async function deleteMatchEvent(eventId: string, matchId: string) {
   return { success: true }
 }
 
+export async function syncSingleMatch(matchId: string) {
+  const supabase = await requireAdmin()
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("fifa_match_id")
+    .eq("id", matchId)
+    .single() as unknown as { data: { fifa_match_id: string | null } | null }
+
+  if (!match?.fifa_match_id) return { error: "Este partido no tiene fifa_match_id mapeado." }
+
+  const base = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000"
+
+  try {
+    const res = await fetch(`${base}/api/cron/sync-matches`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ testFifaMatchId: match.fifa_match_id, ourMatchId: matchId }),
+      cache: "no-store",
+    })
+    const data = await res.json()
+    if (!res.ok) return { error: data.error ?? `HTTP ${res.status}` }
+    revalidatePath(`/admin/match/${matchId}`)
+    revalidatePath("/admin")
+    return { data }
+  } catch (e) {
+    return { error: String(e) }
+  }
+}
+

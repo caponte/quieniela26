@@ -10,6 +10,7 @@
     "seed": "tsx scripts/seed-fixture.ts",
     "map-fixtures": "tsx scripts/map-api-fixtures.ts",
     "map-fifa": "tsx scripts/map-fifa-matches.ts",
+    "map-players": "tsx scripts/map-fifa-players.ts",
     "gen-prediction-data": "tsx scripts/generate-prediction-data.ts"
   },
   "dependencies": {

@@ -58,9 +58,9 @@ export default async function AdminMatchPage({ params }: Props) {
 
   const { data: match } = await supabase
     .from("matches")
-    .select("id, match_number, match_date, stage, group_name, home_score, away_score, status, home_team_id, away_team_id")
+    .select("id, match_number, match_date, stage, group_name, home_score, away_score, status, home_team_id, away_team_id, fifa_match_id")
     .eq("id", id)
-    .single() as unknown as { data: (MatchWithTeams & { home_team_id: string; away_team_id: string }) | null }
+    .single() as unknown as { data: (MatchWithTeams & { home_team_id: string; away_team_id: string; fifa_match_id: string | null }) | null }
 
   if (!match) notFound()
 
@@ -109,6 +109,7 @@ export default async function AdminMatchPage({ params }: Props) {
         awayTeam={awayTeam}
         events={events ?? []}
         players={players ?? []}
+        fifaMatchId={match.fifa_match_id}
       />
     </div>
   )

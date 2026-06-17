@@ -28,13 +28,19 @@ async function fifaFetch(path: string) {
 async function syncMatch(
   supabase: ReturnType<typeof adminClient>,
   fifaDetail: any,
-  ourMatch: { id: string; status: string; home_team_id: string; away_team_id: string }
+  ourMatch: { id: string; status: string; home_team_id: string; away_team_id: string },
+  force = false
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const newStatus = toMatchStatus(fifaDetail.MatchStatus);
-  const homeGoals: number | null = fifaDetail.HomeTeamScore ?? null;
-  const awayGoals: number | null = fifaDetail.AwayTeamScore ?? null;
+  // FIFA API may return null Score at kickoff; live matches should show 0-0, not null.
+  const homeGoals: number | null = newStatus === "live"
+    ? (fifaDetail.HomeTeam?.Score ?? 0)
+    : (fifaDetail.HomeTeam?.Score ?? null);
+  const awayGoals: number | null = newStatus === "live"
+    ? (fifaDetail.AwayTeam?.Score ?? 0)
+    : (fifaDetail.AwayTeam?.Score ?? null);
   const isPenaltyShootout =
     fifaDetail.HomeTeamPenaltyScore !== null &&
     fifaDetail.HomeTeamPenaltyScore !== undefined;
@@ -43,8 +49,9 @@ async function syncMatch(
 
   const errors: string[] = [];
 
-  // Sync events BEFORE updating status so the DB trigger sees them
-  if (isBecomingFinished) {
+  // Sync events BEFORE updating status so the DB trigger sees them.
+  // force=true allows re-syncing events on already-finished matches (admin button).
+  if (isBecomingFinished || (force && newStatus === "finished")) {
     await db.from("match_events").delete().eq("match_id", ourMatch.id);
 
     const allPlayers: any[] = [
@@ -53,6 +60,18 @@ async function syncMatch(
     ];
     const playerById = new Map<string, any>(
       allPlayers.map((p) => [p.IdPlayer, p])
+    );
+
+    // Fetch our DB players for this match to use canonical names
+    const { data: dbPlayers } = await supabase
+      .from("players")
+      .select("name, fifa_player_id")
+      .in("team_id", [ourMatch.home_team_id, ourMatch.away_team_id])
+      .not("fifa_player_id", "is", null) as unknown as {
+        data: { name: string; fifa_player_id: string }[] | null
+      };
+    const dbPlayerByFifaId = new Map<string, string>(
+      (dbPlayers ?? []).map((p) => [p.fifa_player_id, p.name])
     );
 
     // Tag each goal with the team that benefits (OG → opponent's team_id)
@@ -77,10 +96,12 @@ async function syncMatch(
       const isFirstGoal = !firstGoalDone && !isOwnGoal;
       if (!isOwnGoal) firstGoalDone = true;
 
-      const player = playerById.get(goal.IdPlayer);
+      // Prefer our DB name (canonical), fall back to FIFA API name
+      const fifaPlayer = playerById.get(goal.IdPlayer);
       const playerName =
-        player?.ShortName?.[0]?.Description ??
-        player?.PlayerName?.[0]?.Description ??
+        dbPlayerByFifaId.get(goal.IdPlayer) ??
+        fifaPlayer?.ShortName?.[0]?.Description ??
+        fifaPlayer?.PlayerName?.[0]?.Description ??
         null;
 
       const { error: evtErr } = await db.from("match_events").insert({
@@ -95,6 +116,20 @@ async function syncMatch(
       });
 
       if (evtErr) errors.push(`event: ${evtErr.message}`);
+
+      // Insert a separate 'penalty' marker so the trigger detects has_penalty correctly
+      if (isPenalty) {
+        await db.from("match_events").insert({
+          match_id: ourMatch.id,
+          type: "penalty",
+          team_id: goal.benefitTeamId,
+          player_name: playerName,
+          minute: goal.Minute ? parseInt(goal.Minute) : null,
+          is_first_goal: false,
+          is_own_goal: false,
+          penalty_scored: true,
+        });
+      }
     }
 
     if (isPenaltyShootout) {
@@ -117,6 +152,13 @@ async function syncMatch(
     .eq("id", ourMatch.id);
 
   if (updateErr) errors.push(`match update: ${updateErr.message}`);
+
+  // When force-syncing a match that's already finished (same score = trigger won't fire),
+  // explicitly recalculate stored match_points so first_goal_scorer/has_penalty are correct.
+  if (force && newStatus === "finished" && ourMatch.status === "finished") {
+    const { error: rpcErr } = await db.rpc("calculate_match_points", { p_match_id: ourMatch.id });
+    if (rpcErr) errors.push(`recalc points: ${rpcErr.message}`);
+  }
 
   return {
     matchId: ourMatch.id,
@@ -153,6 +195,14 @@ export async function POST(req: NextRequest) {
   const supabase = adminClient();
   const body = await req.json().catch(() => ({}));
 
+  // ── DEBUG MODE ─────────────────────────────────────────────────────────────
+  // Body: { debugFifaMatchId: "400021458" } → returns raw FIFA response
+  if (body.debugFifaMatchId) {
+    const raw = await fifaFetch(`/live/football/${body.debugFifaMatchId}`);
+    return NextResponse.json({ debug: true, raw });
+  }
+  // ── END DEBUG MODE ─────────────────────────────────────────────────────────
+
   // ── TEST MODE ──────────────────────────────────────────────────────────────
   // Body: { testFifaMatchId: "400021458", ourMatchId: "<uuid>" }
   if (body.testFifaMatchId && body.ourMatchId) {
@@ -174,7 +224,7 @@ export async function POST(req: NextRequest) {
     if (!ourMatch)
       return NextResponse.json({ error: "Match not found in DB" }, { status: 404 });
 
-    const result = await syncMatch(supabase, fifaDetail, ourMatch);
+    const result = await syncMatch(supabase, fifaDetail, ourMatch, true);
     const responsePayload = { test: true, ...result };
     await insertLog(supabase, "test", responsePayload, 1, 1, result.errors);
     revalidatePath("/dashboard");
