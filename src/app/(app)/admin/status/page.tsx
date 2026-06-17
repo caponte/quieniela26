@@ -16,11 +16,8 @@ export interface SyncLog {
 async function checkApi(): Promise<boolean> {
   try {
     const res = await fetch(
-      "https://api.football-data.org/v4/competitions/WC/matches?season=2026&limit=1",
-      {
-        headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_API_KEY! },
-        cache: "no-store",
-      }
+      "https://api.fifa.com/api/v3/calendar/matches?idCompetition=17&idSeason=285023&count=1&language=en",
+      { cache: "no-store" }
     )
     return res.ok
   } catch {
@@ -44,7 +41,7 @@ export default async function SyncStatusPage() {
   const [apiOk, { count: total }, { count: mapped }, { data: logs }] = await Promise.all([
     checkApi(),
     supabase.from("matches").select("*", { count: "exact", head: true }) as unknown as Promise<{ count: number }>,
-    supabase.from("matches").select("*", { count: "exact", head: true }).not("api_fixture_id", "is", null) as unknown as Promise<{ count: number }>,
+    supabase.from("matches").select("*", { count: "exact", head: true }).not("fifa_match_id", "is", null) as unknown as Promise<{ count: number }>,
     supabase.from("sync_logs").select("id, triggered_at, source, synced, total, errors, payload").order("triggered_at", { ascending: false }).limit(50) as unknown as Promise<{ data: SyncLog[] | null }>,
   ])
 

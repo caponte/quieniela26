@@ -67,7 +67,7 @@ export default function SyncPanel({ initialApiOk, mapped, total, logs: initialLo
         <h2 className="text-sm font-semibold text-(--color-muted) uppercase tracking-wide mb-4">Conexión API</h2>
         <div className="flex items-center gap-3">
           <span className={`w-3 h-3 rounded-full ${initialApiOk ? "bg-green-500" : "bg-red-500"}`} />
-          <span className="font-medium">football-data.org</span>
+          <span className="font-medium">api.fifa.com</span>
           <span className={`text-sm ${initialApiOk ? "text-green-400" : "text-red-400"}`}>
             {initialApiOk ? "Conectado" : "Sin conexión"}
           </span>

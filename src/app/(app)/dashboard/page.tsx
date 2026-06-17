@@ -11,6 +11,7 @@ import { BracketCountdown } from "@/components/BracketCountdown";
 import { BRACKET_LOCK_TIME } from "@/lib/utils/bracket";
 import { calculateLivePoints } from "@/lib/utils/livePoints";
 import type { LiveMatchState } from "@/lib/utils/livePoints";
+import JornadaWrapCard from "./JornadaWrapCard";
 
 interface MatchRow {
   id: string;
@@ -314,7 +315,7 @@ export default async function DashboardPage() {
       {Date.now() < BRACKET_LOCK_TIME.getTime() && <BracketCountdown />}
 
       {/* Quick actions */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link href="/predict/bracket" className="group relative overflow-hidden rounded-2xl h-44 flex flex-col justify-end">
           <Image
             src={bracketImg}
@@ -352,6 +353,8 @@ export default async function DashboardPage() {
             <span>📅</span> CALENDAR
           </div>
         </Link>
+
+        <JornadaWrapCard />
       </section>
 
       {/* Live matches */}

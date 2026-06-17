@@ -31,6 +31,7 @@ export interface LeagueMemberPred {
 
 const FINISHED_BREAKDOWN_ROWS: { key: string; label: string; pts: number }[] = [
   { key: "exact_score",         label: "Marcador exacto",          pts: 3 },
+  { key: "correct_winner",      label: "Ganador / empate",         pts: 1 },
   { key: "home_goals_exact",    label: "Goles local exactos",      pts: 1 },
   { key: "away_goals_exact",    label: "Goles visita exactos",     pts: 1 },
   { key: "first_team_to_score", label: "Primer equipo en marcar",  pts: 1 },
@@ -683,6 +684,8 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds, resultEv
                     <div className="px-4 pb-3 pt-1 bg-white/3 border-t border-white/6 space-y-1">
                       {FINISHED_BREAKDOWN_ROWS.map((row) => {
                         const earned = pred.finishedBreakdown![row.key] === true
+                        // Hide correct_winner when exact_score was earned (it's implicit and not awarded separately)
+                        if (row.key === "correct_winner" && pred.finishedBreakdown!["exact_score"] === true) return null
                         return (
                           <div key={row.key} className="flex justify-between gap-2 text-xs">
                             <span className={earned ? "text-emerald-400" : "text-white/30"}>

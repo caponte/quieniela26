@@ -36,30 +36,20 @@ export default async function JornadaPage({ params, searchParams }: Props) {
   if (info.isGroup) {
     const round = slug === "j1" ? 1 : slug === "j2" ? 2 : 3
 
-    // Fetch all group matches to derive round membership by group
+    // Fetch all group matches with full data, then filter by round
     const { data: allGroupMatches } = await supabase
       .from("matches")
-      .select("id, match_date, group_name")
-      .eq("stage", "group") as unknown as { data: { id: string; match_date: string; group_name: string | null }[] | null }
+      .select(`
+        id, match_date, stage, match_number, group_name, home_score, away_score, status,
+        home_team:home_team_id ( id, name, fifa_code, flag_url ),
+        away_team:away_team_id ( id, name, fifa_code, flag_url )
+      `)
+      .eq("stage", "group")
+      .order("match_date", { ascending: true })
+      .order("match_number", { ascending: true }) as unknown as { data: MatchWithTeams[] | null }
 
     const roundIds = getGroupRoundMatchIds(allGroupMatches ?? [], round as 1 | 2 | 3)
-    const ids = Array.from(roundIds)
-
-    if (ids.length === 0) {
-      rawMatches = []
-    } else {
-      const { data } = await supabase
-        .from("matches")
-        .select(`
-          id, match_date, stage, match_number, group_name, home_score, away_score, status,
-          home_team:home_team_id ( id, name, fifa_code, flag_url ),
-          away_team:away_team_id ( id, name, fifa_code, flag_url )
-        `)
-        .in("id", ids)
-        .order("match_date", { ascending: true })
-        .order("match_number", { ascending: true }) as unknown as { data: MatchWithTeams[] | null }
-      rawMatches = data
-    }
+    rawMatches = (allGroupMatches ?? []).filter((m) => roundIds.has(m.id))
   } else {
     const { data } = await supabase
       .from("matches")
@@ -200,6 +190,9 @@ export default async function JornadaPage({ params, searchParams }: Props) {
       if (!leaguePredsByMatchId[pred.match_id]) leaguePredsByMatchId[pred.match_id] = []
       const profile = profileMap[pred.user_id]
       const liveState = liveStateMap[pred.match_id] ?? null
+      const liveCalc = liveState
+        ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer, hasPenalty: pred.has_penalty }, liveState)
+        : null
       leaguePredsByMatchId[pred.match_id].push({
         userId: pred.user_id,
         name: profile?.name ?? "—",
@@ -213,12 +206,8 @@ export default async function JornadaPage({ params, searchParams }: Props) {
         totalPoints: (jornadaMap[pred.user_id] ?? 0) + (bracketMap[pred.user_id] ?? 0),
         matchPoints: pred.match_points?.total_points ?? null,
         finishedBreakdown: pred.match_points?.breakdown ?? null,
-        livePoints: liveState
-          ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer, hasPenalty: pred.has_penalty }, liveState).total
-          : null,
-        liveBreakdown: liveState
-          ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer, hasPenalty: pred.has_penalty }, liveState)
-          : null,
+        livePoints: liveCalc?.total ?? null,
+        liveBreakdown: liveCalc,
       })
     }
   }

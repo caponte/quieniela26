@@ -3,8 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import type { Database, MatchStatus } from "@/lib/supabase/database.types";
 
-const FD_KEY = process.env.FOOTBALL_DATA_API_KEY!;
-const FD_BASE = "https://api.football-data.org/v4";
+const FIFA_BASE = "https://api.fifa.com/api/v3";
 
 function adminClient() {
   return createClient<Database>(
@@ -13,77 +12,89 @@ function adminClient() {
   );
 }
 
-type FdStatus =
-  | "TIMED" | "SCHEDULED" | "IN_PLAY" | "PAUSED"
-  | "FINISHED" | "POSTPONED" | "CANCELLED" | "SUSPENDED";
-
-function toMatchStatus(s: FdStatus): MatchStatus {
-  if (s === "IN_PLAY" || s === "PAUSED") return "live";
-  if (s === "FINISHED") return "finished";
-  if (s === "POSTPONED" || s === "CANCELLED" || s === "SUSPENDED") return "postponed";
+// FIFA MatchStatus codes: 0 = finished, 1 = scheduled, 3 = live
+function toMatchStatus(s: number): MatchStatus {
+  if (s === 3) return "live";
+  if (s === 0) return "finished";
   return "scheduled";
 }
 
-async function fdFetch(path: string) {
-  const res = await fetch(`${FD_BASE}${path}`, {
-    headers: { "X-Auth-Token": FD_KEY },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`football-data.org ${res.status} on ${path}`);
+async function fifaFetch(path: string) {
+  const res = await fetch(`${FIFA_BASE}${path}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`fifa ${res.status} on ${path}`);
   return res.json();
 }
 
 async function syncMatch(
   supabase: ReturnType<typeof adminClient>,
-  apiMatch: any,
+  fifaDetail: any,
   ourMatch: { id: string; status: string; home_team_id: string; away_team_id: string }
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
-  const apiStatus = apiMatch.status as FdStatus;
-  const newStatus = toMatchStatus(apiStatus);
-  const homeGoals: number | null = apiMatch.score?.fullTime?.home ?? null;
-  const awayGoals: number | null = apiMatch.score?.fullTime?.away ?? null;
-  const isPenaltyShootout = apiMatch.score?.duration === "PENALTY_SHOOTOUT";
-  const isBecomingFinished = newStatus === "finished" && ourMatch.status !== "finished";
+  const newStatus = toMatchStatus(fifaDetail.MatchStatus);
+  const homeGoals: number | null = fifaDetail.HomeTeamScore ?? null;
+  const awayGoals: number | null = fifaDetail.AwayTeamScore ?? null;
+  const isPenaltyShootout =
+    fifaDetail.HomeTeamPenaltyScore !== null &&
+    fifaDetail.HomeTeamPenaltyScore !== undefined;
+  const isBecomingFinished =
+    newStatus === "finished" && ourMatch.status !== "finished";
 
   const errors: string[] = [];
 
   // Sync events BEFORE updating status so the DB trigger sees them
   if (isBecomingFinished) {
-    let goals: any[] = [];
-    try {
-      const detail = await fdFetch(`/matches/${apiMatch.id}`);
-      goals = detail.goals ?? [];
-    } catch {
-      // will retry next tick
-    }
+    await db.from("match_events").delete().eq("match_id", ourMatch.id);
 
-    if (goals.length > 0) {
-      await db.from("match_events").delete().eq("match_id", ourMatch.id);
+    const allPlayers: any[] = [
+      ...(fifaDetail.HomeTeam?.Players ?? []),
+      ...(fifaDetail.AwayTeam?.Players ?? []),
+    ];
+    const playerById = new Map<string, any>(
+      allPlayers.map((p) => [p.IdPlayer, p])
+    );
 
-      let firstGoalDone = false;
-      for (const goal of goals) {
-        const isOwnGoal = goal.type === "OWN" || goal.type === "OWN_GOAL";
-        const isFirstGoal = !firstGoalDone && !isOwnGoal;
-        if (!isOwnGoal) firstGoalDone = true;
+    // Tag each goal with the team that benefits (OG → opponent's team_id)
+    const homeGoalEvents = (fifaDetail.HomeTeam?.Goals ?? []).map((g: any) => ({
+      ...g,
+      benefitTeamId: ourMatch.home_team_id,
+    }));
+    const awayGoalEvents = (fifaDetail.AwayTeam?.Goals ?? []).map((g: any) => ({
+      ...g,
+      benefitTeamId: ourMatch.away_team_id,
+    }));
 
-        const isHomeTeam = goal.team?.id === apiMatch.homeTeam?.id;
-        const teamId = isHomeTeam ? ourMatch.home_team_id : ourMatch.away_team_id;
+    // Sort by minute to determine first goal correctly
+    const allGoals = [...homeGoalEvents, ...awayGoalEvents].sort((a, b) => {
+      return parseInt(a.Minute ?? "0") - parseInt(b.Minute ?? "0");
+    });
 
-        const { error: evtErr } = await db.from("match_events").insert({
-          match_id: ourMatch.id,
-          type: "goal",
-          team_id: teamId,
-          player_name: goal.scorer?.name ?? null,
-          minute: goal.minute ?? null,
-          is_first_goal: isFirstGoal,
-          is_own_goal: isOwnGoal,
-          penalty_scored: goal.type === "PENALTY" ? true : null,
-        });
+    let firstGoalDone = false;
+    for (const goal of allGoals) {
+      const isOwnGoal = goal.Type === 3;
+      const isPenalty = goal.Type === 1;
+      const isFirstGoal = !firstGoalDone && !isOwnGoal;
+      if (!isOwnGoal) firstGoalDone = true;
 
-        if (evtErr) errors.push(`event: ${evtErr.message}`);
-      }
+      const player = playerById.get(goal.IdPlayer);
+      const playerName =
+        player?.ShortName?.[0]?.Description ??
+        player?.PlayerName?.[0]?.Description ??
+        null;
+
+      const { error: evtErr } = await db.from("match_events").insert({
+        match_id: ourMatch.id,
+        type: "goal",
+        team_id: goal.benefitTeamId,
+        player_name: playerName,
+        minute: goal.Minute ? parseInt(goal.Minute) : null,
+        is_first_goal: isFirstGoal,
+        is_own_goal: isOwnGoal,
+        penalty_scored: isPenalty ? true : null,
+      });
+
+      if (evtErr) errors.push(`event: ${evtErr.message}`);
     }
 
     if (isPenaltyShootout) {
@@ -109,7 +120,6 @@ async function syncMatch(
 
   return {
     matchId: ourMatch.id,
-    apiStatus,
     newStatus,
     score: `${homeGoals ?? "?"}-${awayGoals ?? "?"}`,
     errors,
@@ -144,18 +154,27 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
 
   // ── TEST MODE ──────────────────────────────────────────────────────────────
-  if (body.testFixtureId && body.ourMatchId) {
-    const apiMatch = await fdFetch(`/matches/${body.testFixtureId}`);
+  // Body: { testFifaMatchId: "400021458", ourMatchId: "<uuid>" }
+  if (body.testFifaMatchId && body.ourMatchId) {
+    const fifaDetail = await fifaFetch(`/live/football/${body.testFifaMatchId}`);
 
-    const { data: ourMatch } = await supabase
+    const { data: ourMatch } = (await supabase
       .from("matches")
       .select("id, status, home_team_id, away_team_id")
       .eq("id", body.ourMatchId)
-      .single() as unknown as { data: { id: string; status: string; home_team_id: string; away_team_id: string } | null };
+      .single()) as unknown as {
+      data: {
+        id: string;
+        status: string;
+        home_team_id: string;
+        away_team_id: string;
+      } | null;
+    };
 
-    if (!ourMatch) return NextResponse.json({ error: "Match not found in DB" }, { status: 404 });
+    if (!ourMatch)
+      return NextResponse.json({ error: "Match not found in DB" }, { status: 404 });
 
-    const result = await syncMatch(supabase, apiMatch, ourMatch);
+    const result = await syncMatch(supabase, fifaDetail, ourMatch);
     const responsePayload = { test: true, ...result };
     await insertLog(supabase, "test", responsePayload, 1, 1, result.errors);
     revalidatePath("/dashboard");
@@ -167,15 +186,28 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const in4h = new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString();
 
-  type OurMatch = { id: string; api_fixture_id: number | null; status: string; home_team_id: string; away_team_id: string };
-  const { data: ourMatches, error: matchErr } = await supabase
+  type OurMatch = {
+    id: string;
+    fifa_match_id: string | null;
+    status: string;
+    home_team_id: string;
+    away_team_id: string;
+  };
+
+  const { data: ourMatches, error: matchErr } = (await supabase
     .from("matches")
-    .select("id, api_fixture_id, status, home_team_id, away_team_id")
-    .not("api_fixture_id", "is", null)
-    .or(`status.eq.live,and(status.eq.scheduled,match_date.lte.${in4h})`) as unknown as { data: OurMatch[] | null; error: { message: string } | null };
+    .select("id, fifa_match_id, status, home_team_id, away_team_id")
+    .not("fifa_match_id", "is", null)
+    .or(
+      `status.eq.live,and(status.eq.scheduled,match_date.lte.${in4h})`
+    )) as unknown as { data: OurMatch[] | null; error: { message: string } | null };
 
   if (matchErr) {
-    await insertLog(supabase, body.source === "manual" ? "manual" : "cron", { error: matchErr.message });
+    await insertLog(
+      supabase,
+      body.source === "manual" ? "manual" : "cron",
+      { error: matchErr.message }
+    );
     return NextResponse.json({ error: matchErr.message }, { status: 500 });
   }
 
@@ -183,33 +215,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ synced: 0, message: "No matches to sync" });
   }
 
-  const dateFrom = now.toISOString().split("T")[0];
-  const dateTo = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-
-  const [todayData, liveData] = await Promise.all([
-    fdFetch(`/competitions/WC/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`),
-    fdFetch(`/competitions/WC/matches?status=IN_PLAY,PAUSED`),
-  ]);
-
-  const allApiMatches: any[] = [...(todayData.matches ?? []), ...(liveData.matches ?? [])];
-  const apiById = new Map<number, any>();
-  for (const m of allApiMatches) apiById.set(m.id, m);
-
-  const ourById = new Map<number, typeof ourMatches[number]>();
-  for (const m of ourMatches) ourById.set(m.api_fixture_id!, m);
-
   let synced = 0;
   const allErrors: string[] = [];
   const matchResults: object[] = [];
 
-  for (const [apiId, apiMatch] of apiById) {
-    const ourMatch = ourById.get(apiId);
-    if (!ourMatch) continue;
+  for (const ourMatch of ourMatches) {
+    let fifaDetail: any;
+    try {
+      fifaDetail = await fifaFetch(`/live/football/${ourMatch.fifa_match_id}`);
+    } catch (err: any) {
+      allErrors.push(`[${ourMatch.fifa_match_id}] fetch: ${err.message}`);
+      continue;
+    }
 
-    const result = await syncMatch(supabase, apiMatch, ourMatch);
+    const result = await syncMatch(supabase, fifaDetail, ourMatch);
     matchResults.push(result);
     if (result.errors.length > 0) {
-      allErrors.push(...result.errors.map((e) => `[M${apiId}] ${e}`));
+      allErrors.push(
+        ...result.errors.map((e) => `[${ourMatch.fifa_match_id}] ${e}`)
+      );
     } else {
       synced++;
     }
@@ -223,7 +247,14 @@ export async function POST(req: NextRequest) {
     ...(allErrors.length > 0 && { errors: allErrors }),
   };
 
-  await insertLog(supabase, source, responsePayload, synced, ourMatches.length, allErrors);
+  await insertLog(
+    supabase,
+    source,
+    responsePayload,
+    synced,
+    ourMatches.length,
+    allErrors
+  );
 
   if (synced > 0) {
     revalidatePath("/dashboard");
