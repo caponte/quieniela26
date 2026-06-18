@@ -121,27 +121,29 @@ export default async function DashboardPage() {
   const liveMatches = liveMatchesResult.data ?? [];
   const finishedMatches = (finishedMatchesResult.data ?? []).slice().reverse(); // chronological
 
-  // Fetch first-goal events for live matches
+  // Fetch all goal events for live matches (for state calc + display)
   const liveMatchStateMap: Record<string, LiveMatchState> = {};
+  const liveMatchEventsMap: Record<string, { team_id: string; player_name: string | null; minute: number | null; is_own_goal: boolean; penalty_scored: boolean | null; is_first_goal: boolean }[]> = {};
   if (liveMatches.length > 0) {
     const liveIds = liveMatches.map((m) => m.id);
     const { data: liveEvents } = await supabase
       .from("match_events")
-      .select("match_id, team_id, player_name, is_first_goal, type")
+      .select("match_id, team_id, player_name, minute, is_first_goal, is_own_goal, penalty_scored, type")
       .in("match_id", liveIds)
-      .or("is_first_goal.eq.true,type.eq.penalty")
-      .eq("is_own_goal", false) as unknown as { data: { match_id: string; team_id: string; player_name: string | null; is_first_goal: boolean; type: string }[] | null };
+      .eq("type", "goal")
+      .order("minute", { ascending: true }) as unknown as { data: { match_id: string; team_id: string; player_name: string | null; minute: number | null; is_first_goal: boolean; is_own_goal: boolean; penalty_scored: boolean | null; type: string }[] | null };
 
     for (const m of liveMatches) {
       const matchEvts = (liveEvents ?? []).filter((e) => e.match_id === m.id);
-      const evt = matchEvts.find((e) => e.is_first_goal);
+      const firstEvt = matchEvts.find((e) => e.is_first_goal);
       liveMatchStateMap[m.id] = {
         homeScore: m.home_score ?? 0,
         awayScore: m.away_score ?? 0,
-        firstGoalTeamId: evt?.team_id ?? null,
-        firstGoalScorerName: evt?.player_name ?? null,
-        hasPenalty: matchEvts.some((e) => e.type === "penalty"),
+        firstGoalTeamId: firstEvt?.team_id ?? null,
+        firstGoalScorerName: firstEvt?.player_name ?? null,
+        hasPenalty: matchEvts.some((e) => e.penalty_scored),
       };
+      liveMatchEventsMap[m.id] = matchEvts;
     }
   }
   const matchIds = matches.map((m) => m.id);
@@ -274,6 +276,7 @@ export default async function DashboardPage() {
     leaguePredictors: firstLeagueMemberIds.length > 0 ? (leaguePredsPerMatch[m.id] ?? []) : null,
     leagueTotal: firstLeagueMemberIds.length > 0 ? firstLeagueMemberIds.length : null,
     leagueFullPreds: firstLeagueMemberIds.length > 0 ? (leagueFullPredsPerMatch[m.id] ?? []) : null,
+    goalEvents: liveMatchEventsMap[m.id] ?? [],
   }));
 
   // Leaderboard

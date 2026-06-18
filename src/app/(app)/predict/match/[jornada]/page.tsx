@@ -40,7 +40,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
     const { data: allGroupMatches } = await supabase
       .from("matches")
       .select(`
-        id, match_date, stage, match_number, group_name, home_score, away_score, status,
+        id, match_date, stage, match_number, group_name, home_score, away_score, status, fifa_match_id,
         home_team:home_team_id ( id, name, fifa_code, flag_url ),
         away_team:away_team_id ( id, name, fifa_code, flag_url )
       `)
@@ -54,7 +54,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
     const { data } = await supabase
       .from("matches")
       .select(`
-        id, match_date, stage, match_number, group_name, home_score, away_score, status,
+        id, match_date, stage, match_number, group_name, home_score, away_score, status, fifa_match_id,
         home_team:home_team_id ( id, name, fifa_code, flag_url ),
         away_team:away_team_id ( id, name, fifa_code, flag_url )
       `)
@@ -92,7 +92,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
     Array.from({ length: Math.ceil(teamIds.length / CHUNK) }, (_, i) =>
       supabase
         .from("players")
-        .select("id, name, position, jersey_number, team_id")
+        .select("id, name, position, jersey_number, team_id, fifa_player_id")
         .in("team_id", teamIds.slice(i * CHUNK, (i + 1) * CHUNK))
         .order("jersey_number", { ascending: true })
     )
@@ -102,6 +102,34 @@ export default async function JornadaPage({ params, searchParams }: Props) {
   const predictionsByMatchId = Object.fromEntries(
     (rawPredictions ?? []).map((p) => [p.match_id, p])
   )
+
+  // Fetch FIFA lineups (starters) for matches that have a fifa_match_id
+  const starterFifaIdsByMatchId: Record<string, Set<string>> = {}
+  const fifaMatchesToFetch = rawMatches.filter((m) => m.fifa_match_id)
+  if (fifaMatchesToFetch.length > 0) {
+    const lineupResults = await Promise.allSettled(
+      fifaMatchesToFetch.map(async (m) => {
+        const res = await fetch(
+          `https://api.fifa.com/api/v3/live/football/${m.fifa_match_id}`,
+          { next: { revalidate: 300 } }
+        )
+        if (!res.ok) return null
+        const data = await res.json()
+        // FIFA Status === 1 means starting XI; Status === 2 means substitute
+        const homePlayers: { IdPlayer: string; Status: number }[] = data?.HomeTeam?.Players ?? []
+        const awayPlayers: { IdPlayer: string; Status: number }[] = data?.AwayTeam?.Players ?? []
+        const starters = [...homePlayers, ...awayPlayers]
+          .filter((p) => p.Status === 1)
+          .map((p) => p.IdPlayer)
+        return { matchId: m.id, starters }
+      })
+    )
+    for (const r of lineupResults) {
+      if (r.status === "fulfilled" && r.value && r.value.starters.length > 0) {
+        starterFifaIdsByMatchId[r.value.matchId] = new Set(r.value.starters)
+      }
+    }
+  }
 
   // Fetch match events (first goal + penalties) for live and finished matches
   const activeMatchIds = rawMatches.filter((m) => m.status === "live" || m.status === "finished").map((m) => m.id)
@@ -229,6 +257,9 @@ export default async function JornadaPage({ params, searchParams }: Props) {
         players={rawPlayers ?? []}
         leaguePredsByMatchId={leaguePredsByMatchId}
         matchResultEventsByMatchId={matchResultEventsMap}
+        starterFifaIdsByMatchId={Object.fromEntries(
+          Object.entries(starterFifaIdsByMatchId).map(([k, v]) => [k, [...v]])
+        )}
         initialMatchId={initialMatchId}
       />
     </>

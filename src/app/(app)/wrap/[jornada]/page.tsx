@@ -59,6 +59,12 @@ type Props = { params: Promise<{ jornada: string }> }
 
 const MEDAL = ["🥇", "🥈", "🥉"]
 
+const AI_USERS = [
+  { id: "a42b03d4-d20d-4a6e-afe4-bce7db0f4a85", label: "Claude",  color: "text-orange-400",  bg: "from-orange-950/60 to-neutral-900" },
+  { id: "3f266f21-9bb7-4175-87c7-4812b659178f", label: "Gemini",  color: "text-blue-400",    bg: "from-blue-950/60 to-neutral-900" },
+  { id: "cc7d23a8-842a-4ba0-a002-50def1dc04df", label: "ChatGPT", color: "text-emerald-400", bg: "from-emerald-950/60 to-neutral-900" },
+] as const
+
 function Avatar({ name, avatarUrl, size = 28 }: { name: string; avatarUrl: string | null; size?: number }) {
   if (avatarUrl) {
     return (
@@ -105,8 +111,10 @@ export default async function WrapPage({ params }: Props) {
   if (jMatchIds.size === 0) return notFound()
   const ids = Array.from(jMatchIds)
 
-  // Step 2: matches + predictions + events in parallel
-  const [matchesRes, predsRes, eventsRes] = await Promise.all([
+  // Step 2: matches + predictions + events + AI predictions in parallel
+  const aiUserIds = AI_USERS.map((a) => a.id)
+
+  const [matchesRes, predsRes, eventsRes, aiPredsRes, aiProfilesRes] = await Promise.all([
     supabase
       .from("matches")
       .select(
@@ -127,6 +135,17 @@ export default async function WrapPage({ params }: Props) {
       .in("match_id", ids)
       .eq("is_own_goal", false)
       .or("is_first_goal.eq.true,type.eq.penalty") as unknown as Promise<{ data: WrapEvent[] | null }>,
+
+    supabase
+      .from("match_predictions")
+      .select("user_id, match_id, home_goals, away_goals, first_goal_scorer, has_penalty, match_points(total_points)")
+      .in("match_id", ids)
+      .in("user_id", aiUserIds) as unknown as Promise<{ data: WrapPred[] | null }>,
+
+    supabase
+      .from("users")
+      .select("id, name, avatar_url")
+      .in("id", aiUserIds) as unknown as Promise<{ data: { id: string; name: string; avatar_url: string | null }[] | null }>,
   ])
 
   const finishedMatches = matchesRes.data ?? []
@@ -159,6 +178,60 @@ export default async function WrapPage({ params }: Props) {
   }
 
   const matchMap = Object.fromEntries(finishedMatches.map((m) => [m.id, m]))
+
+  // AI stats
+  const aiProfileMap = Object.fromEntries((aiProfilesRes.data ?? []).map((u) => [u.id, u]))
+  const rawAiPreds = (aiPredsRes.data ?? []).filter((p) => finishedIds.has(p.match_id))
+  const seenAiKey = new Set<string>()
+  const aiPreds: WrapPred[] = []
+  for (const p of rawAiPreds) {
+    const key = `${p.user_id}:${p.match_id}`
+    if (!seenAiKey.has(key)) { seenAiKey.add(key); aiPreds.push(p) }
+  }
+
+  interface AIStat {
+    id: string
+    label: string
+    name: string
+    avatarUrl: string | null
+    color: string
+    bg: string
+    exactScores: number
+    goalScorers: number
+    points: number
+    predCount: number
+  }
+
+  const aiStats: AIStat[] = AI_USERS.map((ai) => {
+    const profile = aiProfileMap[ai.id]
+    const myPreds = aiPreds.filter((p) => p.user_id === ai.id)
+    let exactScores = 0, goalScorers = 0, points = 0
+    for (const p of myPreds) {
+      const m = matchMap[p.match_id]
+      if (!m) continue
+      points += p.match_points?.total_points ?? 0
+      if (p.home_goals === m.home_score && p.away_goals === m.away_score) exactScores++
+      const actualScorer = firstGoalMap[p.match_id]
+      if (actualScorer && p.first_goal_scorer &&
+          actualScorer.trim().toLowerCase() === p.first_goal_scorer.trim().toLowerCase()) {
+        goalScorers++
+      }
+    }
+    return {
+      id: ai.id,
+      label: ai.label,
+      name: profile?.name ?? ai.label,
+      avatarUrl: profile?.avatar_url ?? null,
+      color: ai.color,
+      bg: ai.bg,
+      exactScores,
+      goalScorers,
+      points,
+      predCount: myPreds.length,
+    }
+  })
+
+  const aiWinner = [...aiStats].sort((a, b) => b.points - a.points || b.exactScores - a.exactScores)[0]
 
   // Per-user stats
   const userStatMap: Record<string, Omit<UserStat, "userId" | "name" | "avatarUrl">> = {}
@@ -227,15 +300,30 @@ export default async function WrapPage({ params }: Props) {
   const easiestMatch = [...matchStats].filter((ms) => ms.predCount > 0)
     .sort((a, b) => (b.exactCount / b.predCount) - (a.exactCount / a.predCount))[0]
 
-  // Most predicted first goal scorer (regardless of correctness)
-  const scorerCounts: Record<string, number> = {}
+  // Most correctly predicted first goal scorer
+  const correctScorerCounts: Record<string, number> = {}
+  for (const h of goalScorerHits) {
+    const key = h.scorerName.trim()
+    correctScorerCounts[key] = (correctScorerCounts[key] ?? 0) + 1
+  }
+  const topCorrectScorer = Object.entries(correctScorerCounts).sort((a, b) => b[1] - a[1])[0]
+
+  // Global score curiosidades
+  const globalScoreCounts: Record<string, number> = {}
+  const globalExactCounts: Record<string, number> = {}
   for (const p of preds) {
-    if (p.first_goal_scorer) {
-      const key = p.first_goal_scorer.trim()
-      scorerCounts[key] = (scorerCounts[key] ?? 0) + 1
+    const key = `${p.home_goals}-${p.away_goals}`
+    globalScoreCounts[key] = (globalScoreCounts[key] ?? 0) + 1
+    const m = matchMap[p.match_id]
+    if (m && p.home_goals === m.home_score && p.away_goals === m.away_score) {
+      globalExactCounts[key] = (globalExactCounts[key] ?? 0) + 1
     }
   }
-  const topPredictedScorer = Object.entries(scorerCounts).sort((a, b) => b[1] - a[1])[0]
+  const mostPredictedScore = Object.entries(globalScoreCounts).sort((a, b) => b[1] - a[1])[0]
+  const mostAccurateScore = Object.entries(globalExactCounts).sort((a, b) => b[1] - a[1])[0]
+  const leastAccurateScore = Object.entries(globalScoreCounts)
+    .filter(([key]) => !globalExactCounts[key])
+    .sort((a, b) => b[1] - a[1])[0]
 
   // Summary numbers
   const totalPreds  = preds.length
@@ -272,6 +360,76 @@ export default async function WrapPage({ params }: Props) {
               <p className="text-xs text-(--color-muted) mt-0.5">{tile.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Curiosidades ── */}
+      <section>
+        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+          <span>💡</span> Curiosidades
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {hardestMatch && (
+            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400/80 mb-2">😤 Más difícil de predecir</p>
+              <p className="font-bold text-sm">
+                {hardestMatch.match.home_team?.fifa_code} {hardestMatch.match.home_score}–{hardestMatch.match.away_score} {hardestMatch.match.away_team?.fifa_code}
+              </p>
+              <p className="text-xs text-(--color-muted) mt-1">
+                Solo {hardestMatch.exactCount} de {hardestMatch.predCount} lo acertaron
+              </p>
+            </div>
+          )}
+          {easiestMatch && easiestMatch.match.id !== hardestMatch?.match.id && (
+            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-green-400/80 mb-2">🎯 Más fácil de predecir</p>
+              <p className="font-bold text-sm">
+                {easiestMatch.match.home_team?.fifa_code} {easiestMatch.match.home_score}–{easiestMatch.match.away_score} {easiestMatch.match.away_team?.fifa_code}
+              </p>
+              <p className="text-xs text-(--color-muted) mt-1">
+                {easiestMatch.exactCount} de {easiestMatch.predCount} lo acertaron ({Math.round((easiestMatch.exactCount / easiestMatch.predCount) * 100)}%)
+              </p>
+            </div>
+          )}
+          {topCorrectScorer && (
+            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400/80 mb-2">⚽ Goleador más acertado</p>
+              <p className="font-bold text-sm">{topCorrectScorer[0]}</p>
+              <p className="text-xs text-(--color-muted) mt-1">
+                {topCorrectScorer[1]} {topCorrectScorer[1] === 1 ? "jugador lo acertó" : "jugadores lo acertaron"} como primer goleador
+              </p>
+            </div>
+          )}
+          {mostPredictedScore && (
+            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-purple-400/80 mb-2">📋 Marcador más predicho</p>
+              <p className="font-bold text-sm">{mostPredictedScore[0]}</p>
+              <p className="text-xs text-(--color-muted) mt-1">
+                Elegido {mostPredictedScore[1]} {mostPredictedScore[1] === 1 ? "vez" : "veces"} en total
+              </p>
+            </div>
+          )}
+          {mostAccurateScore && (
+            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400/80 mb-2">✅ Marcador más acertado</p>
+              <p className="font-bold text-sm">{mostAccurateScore[0]}</p>
+              <p className="text-xs text-(--color-muted) mt-1">
+                {mostAccurateScore[1]} {mostAccurateScore[1] === 1 ? "predicción exacta" : "predicciones exactas"}
+                {globalScoreCounts[mostAccurateScore[0]] > mostAccurateScore[1] && (
+                  <span> de {globalScoreCounts[mostAccurateScore[0]]}</span>
+                )}
+              </p>
+            </div>
+          )}
+          {leastAccurateScore && (
+            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-orange-400/80 mb-2">❌ Marcador menos acertado</p>
+              <p className="font-bold text-sm">{leastAccurateScore[0]}</p>
+              <p className="text-xs text-(--color-muted) mt-1">
+                Predicho {leastAccurateScore[1]} {leastAccurateScore[1] === 1 ? "vez" : "veces"} sin ningún acierto
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -392,6 +550,55 @@ export default async function WrapPage({ params }: Props) {
         </div>
       </section>
 
+      {/* ── Battle de IAs ── */}
+      {aiStats.some((ai) => ai.predCount > 0) && (
+        <section>
+          <h2 className="font-bold text-lg mb-1 flex items-center gap-2">
+            <span>🤖</span> Battle de IAs
+          </h2>
+          <p className="text-(--color-muted) text-xs mb-4">¿Cuál modelo predijo mejor esta jornada?</p>
+          <div className="grid grid-cols-3 gap-3">
+            {aiStats.map((ai) => {
+              const isWinner = ai.id === aiWinner?.id && ai.predCount > 0
+              return (
+                <div
+                  key={ai.id}
+                  className={`relative bg-linear-to-br ${ai.bg} border rounded-xl p-4 flex flex-col gap-3 transition-all ${isWinner ? "border-yellow-400/60 shadow-[0_0_16px_-4px_rgba(250,204,21,0.3)]" : "border-(--color-border)"}`}
+                >
+                  {isWinner && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-yellow-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-full px-2.5 py-0.5 whitespace-nowrap">
+                      Mejor IA ✦
+                    </span>
+                  )}
+
+                  {/* Avatar + name */}
+                  <div className="flex items-center gap-2 mt-1">
+                    <Avatar name={ai.name} avatarUrl={ai.avatarUrl} size={28} />
+                    <span className={`text-sm font-bold leading-tight ${ai.color}`}>{ai.label}</span>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-(--color-muted)">Exactos</span>
+                      <span className="text-sm font-bold tabular-nums text-yellow-400">{ai.exactScores}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-(--color-muted)">Goleadores</span>
+                      <span className="text-sm font-bold tabular-nums text-green-400">{ai.goalScorers}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-(--color-border)/40 pt-2">
+                      <span className="text-[11px] text-(--color-muted)">Puntos</span>
+                      <span className={`text-base font-bold tabular-nums ${ai.color}`}>{ai.points}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
       {/* ── Por partido ── */}
       {matchStats.length > 0 && (
         <section>
@@ -441,46 +648,6 @@ export default async function WrapPage({ params }: Props) {
           </div>
         </section>
       )}
-
-      {/* ── Curiosidades ── */}
-      <section>
-        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <span>💡</span> Curiosidades
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {hardestMatch && (
-            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400/80 mb-2">😤 Más difícil de predecir</p>
-              <p className="font-bold text-sm">
-                {hardestMatch.match.home_team?.fifa_code} {hardestMatch.match.home_score}–{hardestMatch.match.away_score} {hardestMatch.match.away_team?.fifa_code}
-              </p>
-              <p className="text-xs text-(--color-muted) mt-1">
-                Solo {hardestMatch.exactCount} de {hardestMatch.predCount} lo acertaron
-              </p>
-            </div>
-          )}
-          {easiestMatch && easiestMatch.match.id !== hardestMatch?.match.id && (
-            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-green-400/80 mb-2">🎯 Más fácil de predecir</p>
-              <p className="font-bold text-sm">
-                {easiestMatch.match.home_team?.fifa_code} {easiestMatch.match.home_score}–{easiestMatch.match.away_score} {easiestMatch.match.away_team?.fifa_code}
-              </p>
-              <p className="text-xs text-(--color-muted) mt-1">
-                {easiestMatch.exactCount} de {easiestMatch.predCount} lo acertaron ({Math.round((easiestMatch.exactCount / easiestMatch.predCount) * 100)}%)
-              </p>
-            </div>
-          )}
-          {topPredictedScorer && (
-            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400/80 mb-2">⚽ Goleador más predicho</p>
-              <p className="font-bold text-sm">{topPredictedScorer[0]}</p>
-              <p className="text-xs text-(--color-muted) mt-1">
-                {topPredictedScorer[1]} jugadores lo eligieron como primer goleador
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
 
       {/* Back link */}
       <div className="pt-2 pb-8">

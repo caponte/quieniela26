@@ -3,7 +3,6 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { LivePointsTooltip } from "@/components/LivePointsTooltip"
 
 interface Team {
   id: string
@@ -24,6 +23,15 @@ export interface LeagueFullPred {
   totalPoints: number
   livePoints: number | null
   liveBreakdown: import("@/lib/utils/livePoints").LivePointsBreakdown | null
+}
+
+export interface GoalEvent {
+  team_id: string
+  player_name: string | null
+  minute: number | null
+  is_own_goal: boolean
+  penalty_scored: boolean | null
+  is_first_goal: boolean
 }
 
 export interface MatchCardData {
@@ -48,7 +56,19 @@ export interface MatchCardData {
   leaguePredictors: { name: string; avatarUrl: string | null }[] | null
   leagueTotal: number | null
   leagueFullPreds: LeagueFullPred[] | null
+  goalEvents?: GoalEvent[]
 }
+
+type LiveBreakdownKey = keyof Omit<import("@/lib/utils/livePoints").LivePointsBreakdown, "total">
+const LIVE_BREAKDOWN_ROWS: { key: LiveBreakdownKey; label: string }[] = [
+  { key: "exactScore",       label: "Marcador exacto"         },
+  { key: "correctWinner",    label: "Ganador / empate"        },
+  { key: "homeGoalsExact",   label: "Goles local exactos"     },
+  { key: "awayGoalsExact",   label: "Goles visita exactos"    },
+  { key: "firstTeamToScore", label: "Primer equipo en marcar" },
+  { key: "firstGoalScorer",  label: "Primer goleador"         },
+  { key: "hasPenalty",       label: "Penales (sí/no)"         },
+]
 
 const DAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"]
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
@@ -65,6 +85,9 @@ function formatDate(iso: string) {
 
 export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
   const [open, setOpen] = useState(false)
+  const meId = match.leagueFullPreds?.find(p => p.isMe)?.userId ?? null
+  const [openBreakdownId, setOpenBreakdownId] = useState<string | null>(meId)
+
   const pred = match.prediction
   const isLive = match.status === "live"
   const isFinished = match.status === "finished"
@@ -75,6 +98,9 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
       : match.away_team?.name
     : null
 
+  const homeGoals = (match.goalEvents ?? []).filter(e => e.team_id === match.home_team?.id)
+  const awayGoals = (match.goalEvents ?? []).filter(e => e.team_id === match.away_team?.id)
+
   return (
     <div className="bg-(--color-surface) border border-(--color-border) rounded-xl transition-colors hover:border-white/20">
       {/* Main row */}
@@ -83,14 +109,24 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
         onClick={() => setOpen((o) => !o)}
       >
         {/* Home team */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <TeamFlag team={match.home_team} />
-          <span className="font-medium text-sm truncate">{match.home_team?.name ?? "—"}</span>
+        <div className="flex flex-col items-start flex-1 min-w-0 gap-0.5">
+          <div className="flex items-center gap-2">
+            <TeamFlag team={match.home_team} />
+            <span className="font-medium text-sm truncate">{match.home_team?.name ?? "—"}</span>
+          </div>
+          {isLive && homeGoals.length > 0 && (
+            <div className="flex flex-col gap-0 pl-1">
+              {homeGoals.map((g, i) => (
+                <span key={i} className="text-[10px] text-white/50 leading-tight">
+                  ⚽ {g.player_name ?? "—"}{g.minute ? ` ${g.minute}'` : ""}{g.penalty_scored ? " (P)" : ""}{g.is_own_goal ? " (OG)" : ""}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Center: always real result or "vs", plus meta */}
         <div className="flex flex-col items-center shrink-0 gap-0.5 min-w-[110px]">
-          {/* Real score or vs */}
           {isLive ? (
             <span className="text-base font-bold tabular-nums text-green-400">
               {match.home_score} – {match.away_score}
@@ -103,17 +139,14 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
             <span className="text-xs font-semibold text-(--color-muted) tracking-widest">vs</span>
           )}
 
-          {/* Stage · match number */}
           <span className="text-[10px] text-(--color-muted) leading-tight text-center">
             {isLive && <span className="text-green-400 font-semibold">EN VIVO · </span>}
             {match.group_name ? `Grupo ${match.group_name}` : stageLabel(match.stage)}
             {" · "}M{match.match_number}
           </span>
 
-          {/* Date */}
           <span className="text-[10px] text-(--color-muted)">{formatDate(match.match_date)}</span>
 
-          {/* Prediction indicator */}
           {pred ? (
             <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
@@ -125,7 +158,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
               Sin predecir
             </span>
           )}
-          {/* League predictors avatars */}
+
           {match.leaguePredictors !== null && match.leagueTotal !== null && (
             <div className="flex items-center justify-center gap-1 mt-0.5">
               {match.leaguePredictors.length > 0 && (
@@ -156,9 +189,20 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
         </div>
 
         {/* Away team */}
-        <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-          <span className="font-medium text-sm truncate text-right">{match.away_team?.name ?? "—"}</span>
-          <TeamFlag team={match.away_team} />
+        <div className="flex flex-col items-end flex-1 min-w-0 gap-0.5">
+          <div className="flex items-center gap-2 justify-end">
+            <span className="font-medium text-sm truncate text-right">{match.away_team?.name ?? "—"}</span>
+            <TeamFlag team={match.away_team} />
+          </div>
+          {isLive && awayGoals.length > 0 && (
+            <div className="flex flex-col items-end gap-0 pr-1">
+              {awayGoals.map((g, i) => (
+                <span key={i} className="text-[10px] text-white/50 leading-tight">
+                  {g.penalty_scored ? "(P) " : ""}{g.is_own_goal ? "(OG) " : ""}{g.minute ? `${g.minute}' ` : ""}{g.player_name ?? "—"} ⚽
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Chevron */}
@@ -241,37 +285,65 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
                     : p.firstTeamToScoreId === match.away_team?.id
                       ? match.away_team?.fifa_code
                       : null
+                  const isBreakdownOpen = openBreakdownId === p.userId
                   return (
-                    <div key={p.userId} className={`flex items-center gap-3 px-4 py-2 ${p.isMe ? "bg-accent/5" : ""}`}>
-                      {p.avatarUrl ? (
-                        <Image src={p.avatarUrl} alt={p.name} width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-bold shrink-0">
-                          {p.name[0]?.toUpperCase() ?? "?"}
-                        </div>
-                      )}
-                      <span className={`text-xs flex-1 min-w-0 truncate ${p.isMe ? "font-semibold text-(--color-accent)" : "text-(--color-muted)"}`}>
-                        {p.name}
-                      </span>
-                      <span className="text-xs font-bold tabular-nums shrink-0">
-                        {p.homeGoals} – {p.awayGoals}
-                      </span>
-                      <span className="text-[11px] text-(--color-muted) w-20 text-right truncate shrink-0">
-                        {p.firstGoalScorer ?? (firstTeam ?? "—")}
-                      </span>
-                      {p.livePoints !== null && p.liveBreakdown ? (
-                        <div className="relative group shrink-0">
-                          <span className="text-[11px] font-bold tabular-nums text-green-400 cursor-default">
-                            +{p.livePoints} <span className="text-green-400">pts</span>
+                    <div key={p.userId}>
+                      <div className={`flex items-center gap-3 px-4 py-2 ${p.isMe ? "bg-accent/5" : ""}`}>
+                        {p.avatarUrl ? (
+                          <Image src={p.avatarUrl} alt={p.name} width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-bold shrink-0">
+                            {p.name[0]?.toUpperCase() ?? "?"}
+                          </div>
+                        )}
+                        <span className={`text-xs flex-1 min-w-0 truncate ${p.isMe ? "font-semibold text-(--color-accent)" : "text-(--color-muted)"}`}>
+                          {p.name}
+                        </span>
+                        <span className="text-xs font-bold tabular-nums shrink-0">
+                          {p.homeGoals} – {p.awayGoals}
+                        </span>
+                        <span className="text-[11px] text-(--color-muted) w-20 text-right truncate shrink-0">
+                          {p.firstGoalScorer ?? (firstTeam ?? "—")}
+                        </span>
+                        {p.livePoints !== null && p.liveBreakdown ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setOpenBreakdownId(isBreakdownOpen ? null : p.userId) }}
+                            className="flex items-center gap-0.5 text-[11px] font-bold tabular-nums text-green-400 shrink-0 cursor-pointer select-none"
+                          >
+                            {p.livePoints} pts
+                            <span className={`ml-0.5 text-[9px] transition-transform duration-150 ${isBreakdownOpen ? "rotate-180" : ""}`}>▾</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] font-bold tabular-nums text-(--color-accent) w-6 text-right shrink-0">
+                            {p.totalPoints}
                           </span>
-                          <div className="hidden group-hover:block">
-                            <LivePointsTooltip breakdown={p.liveBreakdown} totalAccum={p.totalPoints} />
+                        )}
+                      </div>
+
+                      {/* Live breakdown panel */}
+                      {isBreakdownOpen && p.liveBreakdown && (
+                        <div className="mx-4 mb-2 px-3 py-2 bg-green-500/5 border border-green-500/20 rounded-lg space-y-1">
+                          {LIVE_BREAKDOWN_ROWS.map((row) => {
+                            const pts = p.liveBreakdown![row.key]
+                            const earned = pts > 0
+                            if (row.key === "correctWinner" && (p.liveBreakdown?.exactScore ?? 0) > 0) return null
+                            return (
+                              <div key={row.key} className="flex justify-between gap-2 text-xs">
+                                <span className={earned ? "text-emerald-400" : "text-white/30"}>
+                                  {earned ? "✓" : "✗"} {row.label}
+                                </span>
+                                <span className={`font-bold ${earned ? "text-emerald-400" : "text-white/20"}`}>
+                                  {earned ? `+${pts}` : "+0"}
+                                </span>
+                              </div>
+                            )
+                          })}
+                          <div className="flex justify-between gap-2 text-xs pt-1 border-t border-green-500/20 mt-1">
+                            <span className="text-white/60">Total este partido</span>
+                            <span className="font-bold text-green-400">{p.livePoints}</span>
                           </div>
                         </div>
-                      ) : (
-                        <span className="text-[11px] font-bold tabular-nums text-(--color-accent) w-6 text-right shrink-0">
-                          {p.totalPoints}
-                        </span>
                       )}
                     </div>
                   )

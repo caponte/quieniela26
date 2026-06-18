@@ -22,8 +22,13 @@ export default function JornadaWrapCard() {
         <p className="text-white/60 text-xs mt-1 leading-snug">Exactos, goleadores y estadísticas del grupo.</p>
       </div>
 
-      <div className="absolute top-3 right-4 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1.5 text-xs font-medium text-white/80 group-hover:text-yellow-300 transition-colors">
-        <span>⚡</span> STATS
+      <div className="absolute top-3 right-4 flex items-center gap-2">
+        <span className="bg-yellow-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-0.5">
+          NEW
+        </span>
+        <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1.5 text-xs font-medium text-white/80 group-hover:text-yellow-300 transition-colors">
+          <span>⚡</span> STATS
+        </div>
       </div>
     </Link>
   )

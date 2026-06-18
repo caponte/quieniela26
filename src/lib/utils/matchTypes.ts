@@ -14,6 +14,7 @@ export interface MatchWithTeams {
   home_score: number | null
   away_score: number | null
   status: string
+  fifa_match_id: string | null
   home_team: Team | null
   away_team: Team | null
 }
@@ -40,4 +41,5 @@ export interface PlayerRow {
   position: string | null
   jersey_number: number | null
   team_id: string
+  fifa_player_id: string | null
 }

@@ -4,7 +4,6 @@ import { useState, useTransition, useMemo } from "react"
 import Image from "next/image"
 import { saveMatchPrediction } from "@/lib/actions/match"
 import { isMatchLocked } from "@/lib/utils/jornada"
-import { LivePointsTooltip } from "@/components/LivePointsTooltip"
 import type { JornadaSlug } from "@/lib/utils/jornada"
 import type { MatchWithTeams, MatchPredictionRow, PlayerRow, Team, MatchResultEvents } from "@/lib/utils/matchTypes"
 
@@ -39,6 +38,17 @@ const FINISHED_BREAKDOWN_ROWS: { key: string; label: string; pts: number }[] = [
   { key: "has_penalty",         label: "Penales (sí/no)",          pts: 1 },
 ]
 
+type LiveBreakdownKey = keyof Omit<import("@/lib/utils/livePoints").LivePointsBreakdown, "total">
+const LIVE_BREAKDOWN_ROWS: { key: LiveBreakdownKey; label: string }[] = [
+  { key: "exactScore",       label: "Marcador exacto"         },
+  { key: "correctWinner",    label: "Ganador / empate"        },
+  { key: "homeGoalsExact",   label: "Goles local exactos"     },
+  { key: "awayGoalsExact",   label: "Goles visita exactos"    },
+  { key: "firstTeamToScore", label: "Primer equipo en marcar" },
+  { key: "firstGoalScorer",  label: "Primer goleador"         },
+  { key: "hasPenalty",       label: "Penales (sí/no)"         },
+]
+
 interface MatchState {
   homeGoals: number
   awayGoals: number
@@ -58,6 +68,7 @@ interface Props {
   players: Player[]
   leaguePredsByMatchId: Record<string, LeagueMemberPred[]>
   matchResultEventsByMatchId: Record<string, MatchResultEvents>
+  starterFifaIdsByMatchId: Record<string, string[]>
   initialMatchId?: string
 }
 
@@ -93,7 +104,7 @@ const POS_ORDER: Record<string, number> = { FWD: 0, MID: 1, DEF: 2, GK: 3 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId, matchResultEventsByMatchId, initialMatchId }: Props) {
+export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId, matchResultEventsByMatchId, starterFifaIdsByMatchId, initialMatchId }: Props) {
   const [current, setCurrent] = useState(() => {
     if (!initialMatchId) return 0
     const idx = matches.findIndex((m) => m.id === initialMatchId)
@@ -130,6 +141,11 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
         return (a.jersey_number ?? 99) - (b.jersey_number ?? 99)
       })
   }, [match, players])
+
+  const starterSet = useMemo(() => {
+    const ids = starterFifaIdsByMatchId[match.id]
+    return ids && ids.length > 0 ? new Set(ids) : null
+  }, [match.id, starterFifaIdsByMatchId])
 
   const filteredPlayers = useMemo(() => {
     if (!scorerSearch.trim()) return matchPlayers
@@ -336,6 +352,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
                       players={filteredPlayers.filter((p) => p.team_id === match.home_team?.id)}
                       selectedId={state.scorerId}
                       locked={false}
+                      starterSet={starterSet}
                       onSelect={(p) => updateState({ scorerId: p.id, scorerName: p.name })}
                     />
                     <ScorerGroup
@@ -343,6 +360,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
                       players={filteredPlayers.filter((p) => p.team_id === match.away_team?.id)}
                       selectedId={state.scorerId}
                       locked={false}
+                      starterSet={starterSet}
                       onSelect={(p) => updateState({ scorerId: p.id, scorerName: p.name })}
                     />
                     {filteredPlayers.length === 0 && scorerSearch && (
@@ -466,15 +484,76 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const POSITION_LABEL: Record<string, string> = { FWD: "Delanteros", MID: "Mediocampistas", DEF: "Defensas", GK: "Porteros" }
 
 function ScorerGroup({
-  team, players, selectedId, locked, onSelect,
+  team, players, selectedId, locked, starterSet, onSelect,
 }: {
   team: Team | null
   players: Player[]
   selectedId: string | null
   locked: boolean
+  starterSet: Set<string> | null
   onSelect: (p: Player) => void
 }) {
   if (!team || players.length === 0) return null
+
+  const posOrder = ["FWD", "MID", "DEF", "GK", "—"]
+
+  function sortByPos(a: Player, b: Player) {
+    const pa = POS_ORDER[a.position ?? ""] ?? 4
+    const pb = POS_ORDER[b.position ?? ""] ?? 4
+    if (pa !== pb) return pa - pb
+    return (a.jersey_number ?? 99) - (b.jersey_number ?? 99)
+  }
+
+  function renderPlayer(p: Player) {
+    return (
+      <button
+        key={p.id}
+        disabled={locked}
+        onClick={() => onSelect(p)}
+        className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+          selectedId === p.id
+            ? "bg-accent/10 text-(--color-accent)"
+            : "text-(--color-muted) hover:bg-white/5 hover:text-white"
+        } disabled:opacity-50`}
+      >
+        {p.jersey_number !== null && (
+          <span className="text-xs w-5 text-right opacity-60 tabular-nums">{p.jersey_number}</span>
+        )}
+        <span>{p.name}</span>
+      </button>
+    )
+  }
+
+  const teamHeader = (
+    <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
+      {team.flag_url && (
+        <Image src={team.flag_url} alt={team.name} width={16} height={11} className="rounded-sm object-cover shrink-0" />
+      )}
+      <span className="text-xs font-semibold text-(--color-muted) uppercase tracking-wider">{team.name}</span>
+    </div>
+  )
+
+  if (starterSet) {
+    const starters = players.filter((p) => p.fifa_player_id && starterSet.has(p.fifa_player_id)).sort(sortByPos)
+    const subs = players.filter((p) => !p.fifa_player_id || !starterSet.has(p.fifa_player_id)).sort(sortByPos)
+    return (
+      <>
+        {teamHeader}
+        {starters.length > 0 && (
+          <>
+            <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Titulares</p>
+            {starters.map(renderPlayer)}
+          </>
+        )}
+        {subs.length > 0 && (
+          <>
+            <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Suplentes</p>
+            {subs.map(renderPlayer)}
+          </>
+        )}
+      </>
+    )
+  }
 
   const grouped = players.reduce<Record<string, Player[]>>((acc, p) => {
     const pos = p.position ?? "—"
@@ -482,40 +561,17 @@ function ScorerGroup({
     acc[pos].push(p)
     return acc
   }, {})
-
-  const posOrder = ["FWD", "MID", "DEF", "GK", "—"]
   const sortedPositions = posOrder.filter((pos) => grouped[pos]?.length > 0)
 
   return (
     <>
-      <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
-        {team.flag_url && (
-          <Image src={team.flag_url} alt={team.name} width={16} height={11} className="rounded-sm object-cover shrink-0" />
-        )}
-        <span className="text-xs font-semibold text-(--color-muted) uppercase tracking-wider">{team.name}</span>
-      </div>
+      {teamHeader}
       {sortedPositions.map((pos) => (
         <div key={pos}>
           <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">
             {POSITION_LABEL[pos] ?? pos}
           </p>
-          {grouped[pos].map((p) => (
-            <button
-              key={p.id}
-              disabled={locked}
-              onClick={() => onSelect(p)}
-              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2 ${
-                selectedId === p.id
-                  ? "bg-accent/10 text-(--color-accent)"
-                  : "text-(--color-muted) hover:bg-white/5 hover:text-white"
-              } disabled:opacity-50`}
-            >
-              {p.jersey_number !== null && (
-                <span className="text-xs w-5 text-right opacity-60 tabular-nums">{p.jersey_number}</span>
-              )}
-              <span>{p.name}</span>
-            </button>
-          ))}
+          {grouped[pos].map(renderPlayer)}
         </div>
       ))}
     </>
@@ -536,7 +592,8 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds, resultEv
   leaguePreds: LeagueMemberPred[]
   resultEvents: MatchResultEvents | null
 }) {
-  const [openBreakdownId, setOpenBreakdownId] = useState<string | null>(null)
+  const meId = leaguePreds.find(p => p.isMe)?.userId ?? null
+  const [openBreakdownId, setOpenBreakdownId] = useState<string | null>(meId)
   const isLive = match.status === "live"
   const isFinished = match.status === "finished"
   const hasRealResult = (isLive || isFinished) && match.home_score !== null && match.away_score !== null
@@ -659,14 +716,15 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds, resultEv
 
                     {/* Points */}
                     {pred.livePoints !== null && pred.liveBreakdown ? (
-                      <div className="relative group shrink-0">
-                        <span className="text-xs font-bold tabular-nums text-green-400 cursor-default">
-                          {pred.totalPoints + pred.livePoints} <span className="text-green-400">pts</span>
-                        </span>
-                        <div className="hidden group-hover:block">
-                          <LivePointsTooltip breakdown={pred.liveBreakdown} totalAccum={pred.totalPoints} />
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setOpenBreakdownId(isBreakdownOpen ? null : pred.userId)}
+                        className="flex items-center gap-0.5 text-xs font-bold tabular-nums text-green-400 shrink-0 cursor-pointer select-none"
+                      >
+                        {pred.livePoints}
+                        <span className="text-green-400 ml-0.5">pts</span>
+                        <span className={`ml-0.5 text-[10px] transition-transform duration-150 ${isBreakdownOpen ? "rotate-180" : ""}`}>▾</span>
+                      </button>
                     ) : pred.matchPoints !== null ? (
                       <button
                         type="button"
@@ -678,6 +736,31 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds, resultEv
                       </button>
                     ) : null}
                   </div>
+
+                  {/* Live breakdown panel */}
+                  {isBreakdownOpen && pred.liveBreakdown && (
+                    <div className="px-4 pb-3 pt-1 bg-green-500/5 border-t border-green-500/20 space-y-1">
+                      {LIVE_BREAKDOWN_ROWS.map((row) => {
+                        const pts = pred.liveBreakdown![row.key]
+                        const earned = pts > 0
+                        if (row.key === "correctWinner" && (pred.liveBreakdown?.exactScore ?? 0) > 0) return null
+                        return (
+                          <div key={row.key} className="flex justify-between gap-2 text-xs">
+                            <span className={earned ? "text-emerald-400" : "text-white/30"}>
+                              {earned ? "✓" : "✗"} {row.label}
+                            </span>
+                            <span className={`font-bold ${earned ? "text-emerald-400" : "text-white/20"}`}>
+                              {earned ? `+${pts}` : "+0"}
+                            </span>
+                          </div>
+                        )
+                      })}
+                      <div className="flex justify-between gap-2 text-xs pt-1 border-t border-green-500/20 mt-1">
+                        <span className="text-white/60">Total este partido</span>
+                        <span className="font-bold text-green-400">{pred.livePoints}</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Finished breakdown panel */}
                   {isBreakdownOpen && pred.finishedBreakdown && (

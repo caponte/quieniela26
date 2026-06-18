@@ -51,7 +51,7 @@ async function syncMatch(
 
   // Sync events BEFORE updating status so the DB trigger sees them.
   // force=true allows re-syncing events on already-finished matches (admin button).
-  if (isBecomingFinished || (force && newStatus === "finished")) {
+  if (isBecomingFinished || newStatus === "live" || (force && newStatus === "finished")) {
     await db.from("match_events").delete().eq("match_id", ourMatch.id);
 
     const allPlayers: any[] = [
