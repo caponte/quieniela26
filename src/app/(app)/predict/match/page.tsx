@@ -104,7 +104,8 @@ function JornadaCard({
   noMatches: boolean
   allDone: boolean
 }) {
-  const isDisabled = noMatches || locked
+  const isDisabled = noMatches
+  const isNavigable = !noMatches
 
   const statusBadge = () => {
     if (noMatches) return <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-(--color-muted)">Pendiente</span>
@@ -137,7 +138,7 @@ function JornadaCard({
       </div>
       <div className="flex items-center gap-3">
         {statusBadge()}
-        {!isDisabled && (
+        {isNavigable && (
           <svg className="w-4 h-4 text-(--color-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
@@ -146,7 +147,7 @@ function JornadaCard({
     </div>
   )
 
-  if (isDisabled) return <div>{inner}</div>
+  if (!isNavigable) return <div>{inner}</div>
 
   return (
     <Link href={`/predict/match/${summary.slug}`}>
