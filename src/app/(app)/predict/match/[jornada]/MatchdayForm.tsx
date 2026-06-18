@@ -536,23 +536,21 @@ function ScorerGroup({
   if (starterSet) {
     const starters = players.filter((p) => p.fifa_player_id && starterSet.has(p.fifa_player_id)).sort(sortByPos)
     const subs = players.filter((p) => !p.fifa_player_id || !starterSet.has(p.fifa_player_id)).sort(sortByPos)
-    return (
-      <>
-        {teamHeader}
-        {starters.length > 0 && (
-          <>
-            <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Titulares</p>
-            {starters.map(renderPlayer)}
-          </>
-        )}
-        {subs.length > 0 && (
-          <>
-            <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Suplentes</p>
-            {subs.map(renderPlayer)}
-          </>
-        )}
-      </>
-    )
+    if (starters.length > 0) {
+      return (
+        <>
+          {teamHeader}
+          <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Titulares</p>
+          {starters.map(renderPlayer)}
+          {subs.length > 0 && (
+            <>
+              <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Suplentes</p>
+              {subs.map(renderPlayer)}
+            </>
+          )}
+        </>
+      )
+    }
   }
 
   const grouped = players.reduce<Record<string, Player[]>>((acc, p) => {

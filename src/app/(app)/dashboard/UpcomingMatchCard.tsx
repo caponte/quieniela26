@@ -51,6 +51,7 @@ export interface MatchCardData {
     first_team_to_score: string | null
     has_penalty: boolean
     first_goal_scorer: string | null
+    isStarterPick: boolean | null
   } | null
   jornadaSlug: string
   leaguePredictors: { name: string; avatarUrl: string | null }[] | null
@@ -237,7 +238,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
                 <div className="grid grid-cols-3 gap-2">
                   <DetailCell label="Primer gol" value={firstScorerTeam ?? "Ninguno"} />
                   <DetailCell label="Penales" value={pred.has_penalty ? "Sí" : "No"} />
-                  <DetailCell label="Goleador" value={pred.first_goal_scorer ?? "—"} />
+                  <DetailCell label="Goleador" value={pred.first_goal_scorer ?? "—"} isStarter={pred.isStarterPick} />
                 </div>
               </div>
 
@@ -370,11 +371,14 @@ function TeamFlag({ team, size = 24 }: { team: { flag_url: string | null; name: 
   )
 }
 
-function DetailCell({ label, value }: { label: string; value: string }) {
+function DetailCell({ label, value, isStarter }: { label: string; value: string; isStarter?: boolean | null }) {
   return (
     <div className="bg-white/4 rounded-lg px-2 py-2 text-center">
       <p className="text-[10px] text-(--color-muted) uppercase tracking-wide mb-0.5">{label}</p>
       <p className="text-xs font-semibold truncate">{value}</p>
+      {isStarter === true && (
+        <span className="text-[9px] font-semibold text-emerald-400/80 uppercase tracking-wide">titular</span>
+      )}
     </div>
   )
 }

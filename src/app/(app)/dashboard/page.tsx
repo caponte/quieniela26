@@ -22,6 +22,7 @@ interface MatchRow {
   home_score: number | null;
   away_score: number | null;
   status: string;
+  fifa_match_id: string | null;
   home_team: { id: string; name: string; flag_url: string | null; fifa_code: string } | null;
   away_team: { id: string; name: string; flag_url: string | null; fifa_code: string } | null;
 }
@@ -33,6 +34,7 @@ interface PredRow {
   first_team_to_score: string | null;
   has_penalty: boolean;
   first_goal_scorer: string | null;
+  first_goal_scorer_id: string | null;
 }
 
 interface LeagueRow { id: string; name: string; invite_code: string }
@@ -75,7 +77,7 @@ export default async function DashboardPage() {
     supabase
       .from("matches")
       .select(
-        `id, match_number, match_date, stage, group_name, home_score, away_score, status,
+        `id, match_number, match_date, stage, group_name, home_score, away_score, status, fifa_match_id,
          home_team:teams!matches_home_team_id_fkey(id, name, flag_url, fifa_code),
          away_team:teams!matches_away_team_id_fkey(id, name, flag_url, fifa_code)`
       )
@@ -86,7 +88,7 @@ export default async function DashboardPage() {
     supabase
       .from("matches")
       .select(
-        `id, match_number, match_date, stage, group_name, home_score, away_score, status,
+        `id, match_number, match_date, stage, group_name, home_score, away_score, status, fifa_match_id,
          home_team:teams!matches_home_team_id_fkey(id, name, flag_url, fifa_code),
          away_team:teams!matches_away_team_id_fkey(id, name, flag_url, fifa_code)`
       )
@@ -168,7 +170,7 @@ export default async function DashboardPage() {
     allPredMatchIds.length
       ? supabase
           .from("match_predictions")
-          .select("match_id, home_goals, away_goals, first_team_to_score, has_penalty, first_goal_scorer")
+          .select("match_id, home_goals, away_goals, first_team_to_score, has_penalty, first_goal_scorer, first_goal_scorer_id")
           .eq("user_id", user!.id)
           .is("league_id", null)
           .in("match_id", allPredMatchIds) as unknown as Promise<{ data: PredRow[] | null }>
@@ -196,6 +198,50 @@ export default async function DashboardPage() {
   );
 
   const predByMatchId = Object.fromEntries((rawPredsResult.data ?? []).map((p) => [p.match_id, p]));
+
+  // Fetch FIFA lineups + scorer fifa_player_ids to determine if picked scorer is a starter
+  const upcomingWithFifa = matches.filter((m) => m.fifa_match_id)
+  const scorerIds = [...new Set(
+    (rawPredsResult.data ?? []).map((p) => p.first_goal_scorer_id).filter(Boolean) as string[]
+  )]
+
+  const [lineupResults, scorerPlayersRes] = await Promise.all([
+    Promise.allSettled(
+      upcomingWithFifa.map(async (m) => {
+        const res = await fetch(`https://api.fifa.com/api/v3/live/football/${m.fifa_match_id}`, { next: { revalidate: 300 } })
+        if (!res.ok) return null
+        const data = await res.json()
+        const starters = [
+          ...(data?.HomeTeam?.Players ?? []),
+          ...(data?.AwayTeam?.Players ?? []),
+        ].filter((p: { Status: number }) => p.Status === 1).map((p: { IdPlayer: string }) => p.IdPlayer)
+        return starters.length > 0 ? { matchId: m.id, starters } : null
+      })
+    ),
+    scorerIds.length
+      ? supabase.from("players").select("id, fifa_player_id").in("id", scorerIds) as unknown as Promise<{ data: { id: string; fifa_player_id: string | null }[] | null }>
+      : Promise.resolve({ data: [] as { id: string; fifa_player_id: string | null }[] }),
+  ])
+
+  const starterFifaIdsByMatchId: Record<string, Set<string>> = {}
+  for (const r of lineupResults) {
+    if (r.status === "fulfilled" && r.value) {
+      starterFifaIdsByMatchId[r.value.matchId] = new Set(r.value.starters)
+    }
+  }
+  const scorerFifaPlayerIdMap = Object.fromEntries(
+    (scorerPlayersRes.data ?? []).filter((p) => p.fifa_player_id).map((p) => [p.id, p.fifa_player_id!])
+  )
+
+  function isStarterPick(matchId: string, scorerId: string | null): boolean | null {
+    if (!scorerId) return null
+    const fifaId = scorerFifaPlayerIdMap[scorerId]
+    if (!fifaId) return null
+    const starters = starterFifaIdsByMatchId[matchId]
+    if (!starters) return null
+    return starters.has(fifaId)
+  }
+
   const firstLeagueMembers = firstLeagueMembersResult.data ?? [];
   const firstLeagueMemberIds = firstLeagueMembers.map((m) => m.user_id);
 
@@ -260,9 +306,15 @@ export default async function DashboardPage() {
     });
   }
 
+  function buildPred(m: MatchRow) {
+    const p = predByMatchId[m.id]
+    if (!p) return null
+    return { ...p, isStarterPick: isStarterPick(m.id, p.first_goal_scorer_id) }
+  }
+
   const matchCards: MatchCardData[] = matches.map((m) => ({
     ...m,
-    prediction: predByMatchId[m.id] ?? null,
+    prediction: buildPred(m),
     jornadaSlug: jornadaSlugForMatch(m, groupRoundIds),
     leaguePredictors: firstLeagueMemberIds.length > 0 ? (leaguePredsPerMatch[m.id] ?? []) : null,
     leagueTotal: firstLeagueMemberIds.length > 0 ? firstLeagueMemberIds.length : null,
@@ -271,7 +323,7 @@ export default async function DashboardPage() {
 
   const liveMatchCards: MatchCardData[] = liveMatches.map((m) => ({
     ...m,
-    prediction: predByMatchId[m.id] ?? null,
+    prediction: buildPred(m),
     jornadaSlug: jornadaSlugForMatch(m, groupRoundIds),
     leaguePredictors: firstLeagueMemberIds.length > 0 ? (leaguePredsPerMatch[m.id] ?? []) : null,
     leagueTotal: firstLeagueMemberIds.length > 0 ? firstLeagueMemberIds.length : null,
@@ -301,6 +353,7 @@ export default async function DashboardPage() {
   const leaderboardByTotal   = [...leaderboardBase].sort((a, b) => b.totalPts   - a.totalPts   || b.jornadaPts - a.jornadaPts).slice(0, 5);
   const leaderboardByJornada = [...leaderboardBase].sort((a, b) => b.jornadaPts - a.jornadaPts || b.totalPts   - a.totalPts).slice(0, 5);
   const leaderboardByBracket = [...leaderboardBase].sort((a, b) => b.bracketPts - a.bracketPts || b.totalPts   - a.totalPts).slice(0, 5);
+  const showBracketCountdown = new Date() < BRACKET_LOCK_TIME
 
   return (
     <div className="space-y-6">
@@ -315,7 +368,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* Bracket countdown */}
-      {Date.now() < BRACKET_LOCK_TIME.getTime() && <BracketCountdown />}
+      {showBracketCountdown && <BracketCountdown />}
 
       {/* Quick actions */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
