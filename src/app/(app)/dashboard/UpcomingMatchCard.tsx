@@ -106,20 +106,20 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
     <div className="bg-(--color-surface) border border-(--color-border) rounded-xl transition-colors hover:border-white/20">
       {/* Main row */}
       <button
-        className="w-full text-left px-4 py-3 flex items-center gap-3"
+        className="w-full text-left px-4 py-3 flex items-start gap-3"
         onClick={() => setOpen((o) => !o)}
       >
         {/* Home team */}
         <div className="flex flex-col items-start flex-1 min-w-0 gap-0.5">
           <div className="flex items-center gap-2">
             <TeamFlag team={match.home_team} />
-            <span className="font-medium text-sm truncate">{match.home_team?.name ?? "—"}</span>
+            <span className="font-medium text-sm truncate">{match.home_team?.fifa_code ?? "—"}</span>
           </div>
           {isLive && homeGoals.length > 0 && (
             <div className="flex flex-col gap-0 pl-1">
               {homeGoals.map((g, i) => (
                 <span key={i} className="text-[10px] text-white/50 leading-tight">
-                  ⚽ {g.player_name ?? "—"}{g.minute ? ` ${g.minute}'` : ""}{g.penalty_scored ? " (P)" : ""}{g.is_own_goal ? " (OG)" : ""}
+                  ⚽ {lastName(g.player_name)}{g.minute ? ` ${g.minute}'` : ""}{g.penalty_scored ? " (P)" : ""}{g.is_own_goal ? " (OG)" : ""}
                 </span>
               ))}
             </div>
@@ -127,7 +127,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
         </div>
 
         {/* Center: always real result or "vs", plus meta */}
-        <div className="flex flex-col items-center shrink-0 gap-0.5 min-w-[110px]">
+        <div className="flex flex-col items-center shrink-0 gap-0.5 min-w-[110px] self-center">
           {isLive ? (
             <span className="text-base font-bold tabular-nums text-green-400">
               {match.home_score} – {match.away_score}
@@ -192,14 +192,14 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
         {/* Away team */}
         <div className="flex flex-col items-end flex-1 min-w-0 gap-0.5">
           <div className="flex items-center gap-2 justify-end">
-            <span className="font-medium text-sm truncate text-right">{match.away_team?.name ?? "—"}</span>
+            <span className="font-medium text-sm truncate text-right">{match.away_team?.fifa_code ?? "—"}</span>
             <TeamFlag team={match.away_team} />
           </div>
           {isLive && awayGoals.length > 0 && (
             <div className="flex flex-col items-end gap-0 pr-1">
               {awayGoals.map((g, i) => (
                 <span key={i} className="text-[10px] text-white/50 leading-tight">
-                  {g.penalty_scored ? "(P) " : ""}{g.is_own_goal ? "(OG) " : ""}{g.minute ? `${g.minute}' ` : ""}{g.player_name ?? "—"} ⚽
+                  {g.penalty_scored ? "(P) " : ""}{g.is_own_goal ? "(OG) " : ""}{g.minute ? `${g.minute}' ` : ""}{lastName(g.player_name)} ⚽
                 </span>
               ))}
             </div>
@@ -381,6 +381,12 @@ function DetailCell({ label, value, isStarter }: { label: string; value: string;
       )}
     </div>
   )
+}
+
+function lastName(fullName: string | null): string {
+  if (!fullName) return "—"
+  const parts = fullName.trim().split(" ")
+  return parts[parts.length - 1]
 }
 
 function stageLabel(stage: string): string {
