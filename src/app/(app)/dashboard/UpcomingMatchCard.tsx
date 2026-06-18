@@ -223,7 +223,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
           {pred ? (
             <>
               <div className="px-4">
-                <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-2">Tu pronóstico</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-2 text-center">Tu pronóstico</p>
                 <div className="flex items-center justify-center gap-4 mb-3">
                   <div className="flex items-center gap-2">
                     <TeamFlag team={match.home_team} size={20} />
@@ -240,7 +240,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
                 <div className="grid grid-cols-3 gap-2">
                   <DetailCell label="Primer gol" value={firstScorerTeam ?? "Ninguno"} />
                   <DetailCell label="Penales" value={pred.has_penalty ? "Sí" : "No"} />
-                  <DetailCell label="Goleador" value={pred.first_goal_scorer ?? "—"} isStarter={pred.isStarterPick} pictureUrl={pred.first_goal_scorer_picture_url} />
+                  <DetailCell label="Goleador" value={lastName(pred.first_goal_scorer)} isStarter={pred.isStarterPick} pictureUrl={pred.first_goal_scorer_picture_url} />
                 </div>
               </div>
 
@@ -383,7 +383,7 @@ function DetailCell({ label, value, isStarter, pictureUrl }: { label: string; va
             <Image src={pictureUrl} alt={value} fill sizes="120px" quality={90} className="object-cover object-top scale-[2.2] origin-[50%_8%]" />
           </div>
         )}
-        <p className="text-xs font-semibold truncate">{value}</p>
+        <p className="text-xs font-semibold truncate text-center">{value}</p>
       </div>
       {isStarter === true && (
         <span className="text-[9px] font-semibold text-emerald-400/80 uppercase tracking-wide">titular</span>
