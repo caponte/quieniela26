@@ -1,0 +1,1000 @@
+{
+  "_meta": {
+    "generated_at": "2026-06-18T04:52:47.244Z",
+    "j1_finished": 24,
+    "j1_total": 24
+  },
+  "j1_results": [
+    {
+      "match_id": "cd408b16-41fd-4e0d-8670-0fd5e0783185",
+      "group": "A",
+      "match_date": "2026-06-11T19:00:00+00:00",
+      "status": "finished",
+      "home_team": "MEX",
+      "away_team": "RSA",
+      "home_score": 2,
+      "away_score": 0,
+      "first_goal_team": "MEX",
+      "first_goal_scorer": "Julián Quiñones",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "MEX",
+          "player": "Julián Quiñones",
+          "minute": 9,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "MEX",
+          "player": "Raúl Jiménez",
+          "minute": 67,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "a9731114-f671-4657-9d1e-4aca9447b9bc",
+      "group": "A",
+      "match_date": "2026-06-12T02:00:00+00:00",
+      "status": "finished",
+      "home_team": "KOR",
+      "away_team": "CZE",
+      "home_score": 2,
+      "away_score": 1,
+      "first_goal_team": "CZE",
+      "first_goal_scorer": "Ladislav Krejčí",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "CZE",
+          "player": "Ladislav Krejčí",
+          "minute": 59,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "KOR",
+          "player": "Hwang In-Beom",
+          "minute": 67,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "KOR",
+          "player": "Oh Hyeon-Gyu",
+          "minute": 80,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "a0bc0a91-0f07-454e-8345-192baae4e8dd",
+      "group": "B",
+      "match_date": "2026-06-12T19:00:00+00:00",
+      "status": "finished",
+      "home_team": "CAN",
+      "away_team": "BIH",
+      "home_score": 1,
+      "away_score": 1,
+      "first_goal_team": "BIH",
+      "first_goal_scorer": "Jovo Lukić",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "BIH",
+          "player": "Jovo Lukić",
+          "minute": 27,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "CAN",
+          "player": "Cyle Larin",
+          "minute": 79,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "ba0d100a-ae91-4fbe-a1f6-c9d7769a9b0b",
+      "group": "D",
+      "match_date": "2026-06-13T01:00:00+00:00",
+      "status": "finished",
+      "home_team": "USA",
+      "away_team": "PAR",
+      "home_score": 4,
+      "away_score": 1,
+      "first_goal_team": null,
+      "first_goal_scorer": null,
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "USA",
+          "player": null,
+          "minute": 7,
+          "isOwnGoal": true,
+          "isPenalty": false
+        },
+        {
+          "team": "USA",
+          "player": "Folarin Balogun",
+          "minute": 31,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "USA",
+          "player": "Folarin Balogun",
+          "minute": 45,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "PAR",
+          "player": "Mauricio Magalhães",
+          "minute": 73,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "USA",
+          "player": "Gio Reyna",
+          "minute": 90,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "adbdd009-8305-43d1-87c8-228e9fee9bc0",
+      "group": "B",
+      "match_date": "2026-06-13T19:00:00+00:00",
+      "status": "finished",
+      "home_team": "QAT",
+      "away_team": "SUI",
+      "home_score": 1,
+      "away_score": 1,
+      "first_goal_team": "SUI",
+      "first_goal_scorer": "Breel Embolo",
+      "has_penalty": true,
+      "goals": [
+        {
+          "team": "SUI",
+          "player": "Breel Embolo",
+          "minute": 17,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "f0f4a951-46bb-43c7-8115-e43acc3913de",
+      "group": "C",
+      "match_date": "2026-06-13T22:00:00+00:00",
+      "status": "finished",
+      "home_team": "BRA",
+      "away_team": "MAR",
+      "home_score": 1,
+      "away_score": 1,
+      "first_goal_team": "MAR",
+      "first_goal_scorer": "Ismael Saibari",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "MAR",
+          "player": "Ismael Saibari",
+          "minute": 21,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "BRA",
+          "player": "Vinícius Júnior",
+          "minute": 32,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "806c2c36-42f6-4bc0-b955-4b6689d72525",
+      "group": "C",
+      "match_date": "2026-06-14T01:00:00+00:00",
+      "status": "finished",
+      "home_team": "HAI",
+      "away_team": "SCO",
+      "home_score": 0,
+      "away_score": 1,
+      "first_goal_team": "SCO",
+      "first_goal_scorer": "John McGinn",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "SCO",
+          "player": "John McGinn",
+          "minute": 28,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "5b8ac316-78f5-423e-9dce-98a6f60e2ce2",
+      "group": "D",
+      "match_date": "2026-06-14T04:00:00+00:00",
+      "status": "finished",
+      "home_team": "AUS",
+      "away_team": "TUR",
+      "home_score": 2,
+      "away_score": 0,
+      "first_goal_team": "AUS",
+      "first_goal_scorer": "Nestory Irankunda",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "AUS",
+          "player": "Nestory Irankunda",
+          "minute": 27,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "AUS",
+          "player": "Connor Metcalfe",
+          "minute": 75,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "28fdb0c4-884d-4007-92a3-8d02cef20466",
+      "group": "E",
+      "match_date": "2026-06-14T17:00:00+00:00",
+      "status": "finished",
+      "home_team": "GER",
+      "away_team": "CUW",
+      "home_score": 7,
+      "away_score": 1,
+      "first_goal_team": "GER",
+      "first_goal_scorer": "Felix Nmecha",
+      "has_penalty": true,
+      "goals": [
+        {
+          "team": "GER",
+          "player": "Felix Nmecha",
+          "minute": 6,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "CUW",
+          "player": "Livano Comenencia",
+          "minute": 21,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "GER",
+          "player": "Nico Schlotterbeck",
+          "minute": 38,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "GER",
+          "player": "Kai Havertz",
+          "minute": 45,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "GER",
+          "player": "Jamal Musiala",
+          "minute": 47,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "GER",
+          "player": "Nathaniel Brown",
+          "minute": 68,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "GER",
+          "player": "Deniz Undav",
+          "minute": 78,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "GER",
+          "player": "Kai Havertz",
+          "minute": 88,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "6cf1d7f9-a988-42bb-9c97-ae03b4b70df4",
+      "group": "F",
+      "match_date": "2026-06-14T20:00:00+00:00",
+      "status": "finished",
+      "home_team": "NED",
+      "away_team": "JPN",
+      "home_score": 2,
+      "away_score": 2,
+      "first_goal_team": "NED",
+      "first_goal_scorer": "Virgil van Dijk",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "NED",
+          "player": "Virgil van Dijk",
+          "minute": 51,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "JPN",
+          "player": "Keito Nakamura",
+          "minute": 57,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "NED",
+          "player": "Crysencio Summerville",
+          "minute": 64,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "887fa143-6fab-479b-994c-89675dbbd72e",
+      "group": "E",
+      "match_date": "2026-06-14T23:00:00+00:00",
+      "status": "finished",
+      "home_team": "CIV",
+      "away_team": "ECU",
+      "home_score": 1,
+      "away_score": 0,
+      "first_goal_team": "CIV",
+      "first_goal_scorer": "Amad Diallo",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "CIV",
+          "player": "Amad Diallo",
+          "minute": 90,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "ea9c3abf-51bf-4efa-b198-027ecf0e09a6",
+      "group": "F",
+      "match_date": "2026-06-15T02:00:00+00:00",
+      "status": "finished",
+      "home_team": "SWE",
+      "away_team": "TUN",
+      "home_score": 5,
+      "away_score": 1,
+      "first_goal_team": "SWE",
+      "first_goal_scorer": "Yasin Ayari",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "SWE",
+          "player": "Yasin Ayari",
+          "minute": 7,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "SWE",
+          "player": "Alexander Isak",
+          "minute": 30,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "TUN",
+          "player": "Omar Rekik",
+          "minute": 43,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "SWE",
+          "player": "Viktor Gyökeres",
+          "minute": 59,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "edc494e8-bb98-440c-956f-5e5a3f54ecb6",
+      "group": "H",
+      "match_date": "2026-06-15T16:00:00+00:00",
+      "status": "finished",
+      "home_team": "ESP",
+      "away_team": "CPV",
+      "home_score": 0,
+      "away_score": 0,
+      "first_goal_team": null,
+      "first_goal_scorer": null,
+      "has_penalty": false,
+      "goals": []
+    },
+    {
+      "match_id": "e05dcbfe-31d9-411a-a52d-001c41fdc41c",
+      "group": "G",
+      "match_date": "2026-06-15T19:00:00+00:00",
+      "status": "finished",
+      "home_team": "BEL",
+      "away_team": "EGY",
+      "home_score": 1,
+      "away_score": 1,
+      "first_goal_team": "EGY",
+      "first_goal_scorer": "Emam Ashour",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "EGY",
+          "player": "Emam Ashour",
+          "minute": 20,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "BEL",
+          "player": null,
+          "minute": 66,
+          "isOwnGoal": true,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "b18f55ff-e369-4d21-a6c8-79fc5672d326",
+      "group": "H",
+      "match_date": "2026-06-15T22:00:00+00:00",
+      "status": "finished",
+      "home_team": "KSA",
+      "away_team": "URU",
+      "home_score": 1,
+      "away_score": 1,
+      "first_goal_team": "KSA",
+      "first_goal_scorer": "Abdulelah Al Amri",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "KSA",
+          "player": "Abdulelah Al Amri",
+          "minute": 41,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "URU",
+          "player": "Maximiliano Araújo",
+          "minute": 80,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "75700f23-3700-4e9b-aaa3-4f0532e02e56",
+      "group": "G",
+      "match_date": "2026-06-16T01:00:00+00:00",
+      "status": "finished",
+      "home_team": "IRN",
+      "away_team": "NZL",
+      "home_score": 2,
+      "away_score": 2,
+      "first_goal_team": "NZL",
+      "first_goal_scorer": "Eli Just",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "NZL",
+          "player": "Eli Just",
+          "minute": 7,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "IRN",
+          "player": "Ramin Rezaeian",
+          "minute": 32,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "499396ea-9477-416f-bd9d-1c078ad474c3",
+      "group": "I",
+      "match_date": "2026-06-16T19:00:00+00:00",
+      "status": "finished",
+      "home_team": "FRA",
+      "away_team": "SEN",
+      "home_score": 3,
+      "away_score": 1,
+      "first_goal_team": "FRA",
+      "first_goal_scorer": "Kylian Mbappé",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "FRA",
+          "player": "Kylian Mbappé",
+          "minute": 66,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "FRA",
+          "player": "Bradley Barcola",
+          "minute": 82,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "SEN",
+          "player": "Ibrahim Mbaye",
+          "minute": 90,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "FRA",
+          "player": "Kylian Mbappé",
+          "minute": 90,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "af9bf0fc-dc31-4608-b6d2-2182c11cebfd",
+      "group": "I",
+      "match_date": "2026-06-16T22:00:00+00:00",
+      "status": "finished",
+      "home_team": "IRQ",
+      "away_team": "NOR",
+      "home_score": 1,
+      "away_score": 4,
+      "first_goal_team": "NOR",
+      "first_goal_scorer": "Erling Haaland",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "NOR",
+          "player": "Erling Haaland",
+          "minute": 29,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "IRQ",
+          "player": "Aymen Hussein",
+          "minute": 39,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "NOR",
+          "player": "Erling Haaland",
+          "minute": 43,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "NOR",
+          "player": "Leo Østigard",
+          "minute": 76,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "NOR",
+          "player": "Kristian Thorstvedt",
+          "minute": 90,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "f7d21068-dc13-4bd1-b80f-f8b8cd39c782",
+      "group": "J",
+      "match_date": "2026-06-17T01:00:00+00:00",
+      "status": "finished",
+      "home_team": "ARG",
+      "away_team": "ALG",
+      "home_score": 3,
+      "away_score": 0,
+      "first_goal_team": "ARG",
+      "first_goal_scorer": "Lionel Messi",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "ARG",
+          "player": "Lionel Messi",
+          "minute": 17,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "ARG",
+          "player": "Lionel Messi",
+          "minute": 60,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "ARG",
+          "player": "Lionel Messi",
+          "minute": 76,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "4d19dc09-a4dc-4706-a8ef-4f697a1e7b73",
+      "group": "J",
+      "match_date": "2026-06-17T04:00:00+00:00",
+      "status": "finished",
+      "home_team": "AUT",
+      "away_team": "JOR",
+      "home_score": 3,
+      "away_score": 1,
+      "first_goal_team": "AUT",
+      "first_goal_scorer": "Romano Schmid",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "AUT",
+          "player": "Romano Schmid",
+          "minute": 21,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "617300b5-f68e-445e-b1bf-c9c969e03168",
+      "group": "K",
+      "match_date": "2026-06-17T17:00:00+00:00",
+      "status": "finished",
+      "home_team": "POR",
+      "away_team": "COD",
+      "home_score": 1,
+      "away_score": 1,
+      "first_goal_team": "POR",
+      "first_goal_scorer": "João Neves",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "POR",
+          "player": "João Neves",
+          "minute": 6,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "COD",
+          "player": "Yoane Wissa",
+          "minute": 45,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "28f2e9d5-14e7-4c0d-aeaf-30cb62833689",
+      "group": "L",
+      "match_date": "2026-06-17T20:00:00+00:00",
+      "status": "finished",
+      "home_team": "ENG",
+      "away_team": "CRO",
+      "home_score": 4,
+      "away_score": 2,
+      "first_goal_team": "ENG",
+      "first_goal_scorer": "Harry Kane",
+      "has_penalty": true,
+      "goals": [
+        {
+          "team": "ENG",
+          "player": "Harry Kane",
+          "minute": 12,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "CRO",
+          "player": "Martin Baturina",
+          "minute": 36,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "ENG",
+          "player": "Harry Kane",
+          "minute": 42,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "CRO",
+          "player": "Petar Musa",
+          "minute": 45,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "ENG",
+          "player": "Jude Bellingham",
+          "minute": 47,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "ENG",
+          "player": "Marcus Rashford",
+          "minute": 85,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "970d3fb0-1bdf-43ef-8c5e-2ebfb2f4c823",
+      "group": "L",
+      "match_date": "2026-06-17T23:00:00+00:00",
+      "status": "finished",
+      "home_team": "GHA",
+      "away_team": "PAN",
+      "home_score": 1,
+      "away_score": 0,
+      "first_goal_team": "GHA",
+      "first_goal_scorer": "Caleb Yirenkyi",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "GHA",
+          "player": "Caleb Yirenkyi",
+          "minute": 90,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    },
+    {
+      "match_id": "87490bf1-a78a-408c-ad0b-ad4320a6d2be",
+      "group": "K",
+      "match_date": "2026-06-18T02:00:00+00:00",
+      "status": "finished",
+      "home_team": "UZB",
+      "away_team": "COL",
+      "home_score": 1,
+      "away_score": 3,
+      "first_goal_team": "COL",
+      "first_goal_scorer": "Daniel Munoz",
+      "has_penalty": false,
+      "goals": [
+        {
+          "team": "UZB",
+          "player": "Abbosbek Fayzullaev",
+          "minute": 60,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "COL",
+          "player": "Luis Díaz",
+          "minute": 65,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "COL",
+          "player": "Daniel Munoz",
+          "minute": 40,
+          "isOwnGoal": false,
+          "isPenalty": false
+        },
+        {
+          "team": "COL",
+          "player": "Jaminton Campaz",
+          "minute": 90,
+          "isOwnGoal": false,
+          "isPenalty": false
+        }
+      ]
+    }
+  ],
+  "j2_matches": [
+    {
+      "match_id": "09e1da83-53d8-4f6e-a7fb-956388d78f04",
+      "group": "A",
+      "match_date": "2026-06-18T16:00:00+00:00",
+      "home_team": "CZE",
+      "away_team": "RSA"
+    },
+    {
+      "match_id": "7ee7e45a-85a3-49e2-b9c5-026cc3afe8ee",
+      "group": "B",
+      "match_date": "2026-06-18T19:00:00+00:00",
+      "home_team": "SUI",
+      "away_team": "BIH"
+    },
+    {
+      "match_id": "5e4c9291-3ea9-4c14-882b-e71a9967cd8e",
+      "group": "B",
+      "match_date": "2026-06-18T22:00:00+00:00",
+      "home_team": "CAN",
+      "away_team": "QAT"
+    },
+    {
+      "match_id": "d52a9954-3f55-44c7-bee6-a20c3fe66408",
+      "group": "A",
+      "match_date": "2026-06-19T01:00:00+00:00",
+      "home_team": "MEX",
+      "away_team": "KOR"
+    },
+    {
+      "match_id": "2baa7699-1dce-4c72-b484-5a1a30052e41",
+      "group": "D",
+      "match_date": "2026-06-19T19:00:00+00:00",
+      "home_team": "USA",
+      "away_team": "AUS"
+    },
+    {
+      "match_id": "ab0ca9e6-b048-4acd-b0ab-f07183f9aeb9",
+      "group": "C",
+      "match_date": "2026-06-19T22:00:00+00:00",
+      "home_team": "SCO",
+      "away_team": "MAR"
+    },
+    {
+      "match_id": "8334cd2f-373c-478b-bb15-46275cf4b120",
+      "group": "C",
+      "match_date": "2026-06-20T00:30:00+00:00",
+      "home_team": "BRA",
+      "away_team": "HAI"
+    },
+    {
+      "match_id": "5f2fdb89-18ce-4c73-a85f-f6adf2cb2974",
+      "group": "D",
+      "match_date": "2026-06-20T03:00:00+00:00",
+      "home_team": "TUR",
+      "away_team": "PAR"
+    },
+    {
+      "match_id": "2d069349-c9a8-4552-bbb2-0bf8677906d6",
+      "group": "F",
+      "match_date": "2026-06-20T17:00:00+00:00",
+      "home_team": "NED",
+      "away_team": "SWE"
+    },
+    {
+      "match_id": "0f94ea7f-ffea-42fb-80eb-02b75572991c",
+      "group": "E",
+      "match_date": "2026-06-20T20:00:00+00:00",
+      "home_team": "GER",
+      "away_team": "CIV"
+    },
+    {
+      "match_id": "4f34330b-d89f-417b-a99a-4f6d1d3e6751",
+      "group": "E",
+      "match_date": "2026-06-21T00:00:00+00:00",
+      "home_team": "ECU",
+      "away_team": "CUW"
+    },
+    {
+      "match_id": "59498797-5b3c-4d78-9a62-83772cf8ef7d",
+      "group": "F",
+      "match_date": "2026-06-21T04:00:00+00:00",
+      "home_team": "TUN",
+      "away_team": "JPN"
+    },
+    {
+      "match_id": "f79268e2-7fba-4db8-ac53-184dce117b17",
+      "group": "H",
+      "match_date": "2026-06-21T16:00:00+00:00",
+      "home_team": "ESP",
+      "away_team": "KSA"
+    },
+    {
+      "match_id": "9c2ef667-82f4-4129-b589-77d36acd4fda",
+      "group": "G",
+      "match_date": "2026-06-21T19:00:00+00:00",
+      "home_team": "BEL",
+      "away_team": "IRN"
+    },
+    {
+      "match_id": "f2331f3f-2583-4d33-9ea7-517d201628e3",
+      "group": "H",
+      "match_date": "2026-06-21T22:00:00+00:00",
+      "home_team": "URU",
+      "away_team": "CPV"
+    },
+    {
+      "match_id": "5d8c1ea1-a660-4921-8417-508a0b9102b5",
+      "group": "G",
+      "match_date": "2026-06-22T01:00:00+00:00",
+      "home_team": "NZL",
+      "away_team": "EGY"
+    },
+    {
+      "match_id": "b3f96152-2a62-42e3-9668-18c87078afa7",
+      "group": "J",
+      "match_date": "2026-06-22T17:00:00+00:00",
+      "home_team": "ARG",
+      "away_team": "AUT"
+    },
+    {
+      "match_id": "0b73b171-8999-4b98-98bc-041bf85a4d4a",
+      "group": "I",
+      "match_date": "2026-06-22T21:00:00+00:00",
+      "home_team": "FRA",
+      "away_team": "IRQ"
+    },
+    {
+      "match_id": "ad94602d-dfa4-49da-8b71-df2a834909e1",
+      "group": "I",
+      "match_date": "2026-06-23T00:00:00+00:00",
+      "home_team": "NOR",
+      "away_team": "SEN"
+    },
+    {
+      "match_id": "da2b2ac9-62e2-4931-962a-089cfcc05df7",
+      "group": "J",
+      "match_date": "2026-06-23T03:00:00+00:00",
+      "home_team": "JOR",
+      "away_team": "ALG"
+    },
+    {
+      "match_id": "eb6889ec-a905-4614-a8f3-13ba264dfb74",
+      "group": "K",
+      "match_date": "2026-06-23T17:00:00+00:00",
+      "home_team": "POR",
+      "away_team": "UZB"
+    },
+    {
+      "match_id": "409eff0b-ca55-4e30-a86a-09baada591ef",
+      "group": "L",
+      "match_date": "2026-06-23T20:00:00+00:00",
+      "home_team": "ENG",
+      "away_team": "GHA"
+    },
+    {
+      "match_id": "82fe3e5e-3652-4a98-9c6c-0961815cad56",
+      "group": "L",
+      "match_date": "2026-06-23T23:00:00+00:00",
+      "home_team": "PAN",
+      "away_team": "CRO"
+    },
+    {
+      "match_id": "aee7aaf7-77a7-464c-bc7e-9e88216f52d0",
+      "group": "K",
+      "match_date": "2026-06-24T02:00:00+00:00",
+      "home_team": "COL",
+      "away_team": "COD"
+    }
+  ]
+}

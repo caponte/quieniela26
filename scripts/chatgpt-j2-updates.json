@@ -1,0 +1,118 @@
+{
+  "_meta": {
+    "generated_by": "ChatGPT 🤖",
+    "based_on": "j1-results.json",
+    "date": "2026-06-18",
+    "note": "Solo incluye partidos que ChatGPT cambia respecto a sus pronósticos originales de J2."
+  },
+  "updates": [
+    {
+      "match_id": "09e1da83-53d8-4f6e-a7fb-956388d78f04",
+      "home_goals": 2,
+      "away_goals": 0,
+      "first_team_to_score": "CZE",
+      "has_penalty": false,
+      "first_goal_scorer": "Ladislav Krejčí",
+      "reason": "RSA mostró poca amenaza ofensiva ante México"
+    },
+    {
+      "match_id": "d52a9954-3f55-44c7-bee6-a20c3fe66408",
+      "home_goals": 2,
+      "away_goals": 1,
+      "first_team_to_score": "MEX",
+      "has_penalty": false,
+      "first_goal_scorer": "Julián Quiñones",
+      "reason": "Corea del Sur rindió mejor de lo esperado contra Chequia"
+    },
+    {
+      "match_id": "2baa7699-1dce-4c72-b484-5a1a30052e41",
+      "home_goals": 2,
+      "away_goals": 1,
+      "first_team_to_score": "USA",
+      "has_penalty": false,
+      "first_goal_scorer": "Folarin Balogun",
+      "reason": "Australia sorprendió a Turquía y merece más respeto"
+    },
+    {
+      "match_id": "ab0ca9e6-b048-4acd-b0ab-f07183f9aeb9",
+      "home_goals": 1,
+      "away_goals": 2,
+      "first_team_to_score": "MAR",
+      "has_penalty": false,
+      "first_goal_scorer": "Ismael Saibari",
+      "reason": "Marruecos confirmó su nivel empatando con Brasil"
+    },
+    {
+      "match_id": "2d069349-c9a8-4552-bbb2-0bf8677906d6",
+      "home_goals": 2,
+      "away_goals": 2,
+      "first_team_to_score": "NED",
+      "has_penalty": false,
+      "first_goal_scorer": "Virgil van Dijk",
+      "reason": "Suecia y Japón mostraron un nivel ofensivo superior al esperado"
+    },
+    {
+      "match_id": "0f94ea7f-ffea-42fb-80eb-02b75572991c",
+      "home_goals": 3,
+      "away_goals": 1,
+      "first_team_to_score": "GER",
+      "has_penalty": false,
+      "first_goal_scorer": "Felix Nmecha",
+      "reason": "Costa de Marfil compitió mejor de lo previsto pero Alemania fue dominante"
+    },
+    {
+      "match_id": "f79268e2-7fba-4db8-ac53-184dce117b17",
+      "home_goals": 2,
+      "away_goals": 0,
+      "first_team_to_score": "ESP",
+      "has_penalty": false,
+      "first_goal_scorer": "Lamine Yamal",
+      "reason": "España decepcionó en ataque ante Cabo Verde"
+    },
+    {
+      "match_id": "9c2ef667-82f4-4129-b589-77d36acd4fda",
+      "home_goals": 2,
+      "away_goals": 1,
+      "first_team_to_score": "BEL",
+      "has_penalty": false,
+      "first_goal_scorer": "Charles De Ketelaere",
+      "reason": "Bélgica no mostró superioridad suficiente para una goleada"
+    },
+    {
+      "match_id": "f2331f3f-2583-4d33-9ea7-517d201628e3",
+      "home_goals": 1,
+      "away_goals": 1,
+      "first_team_to_score": "CPV",
+      "has_penalty": false,
+      "first_goal_scorer": "Ryan Mendes",
+      "reason": "Cabo Verde ya frenó a España y Uruguay dejó dudas"
+    },
+    {
+      "match_id": "ad94602d-dfa4-49da-8b71-df2a834909e1",
+      "home_goals": 2,
+      "away_goals": 1,
+      "first_team_to_score": "NOR",
+      "has_penalty": false,
+      "first_goal_scorer": "Erling Haaland",
+      "reason": "Noruega fue una de las selecciones más convincentes de J1"
+    },
+    {
+      "match_id": "eb6889ec-a905-4614-a8f3-13ba264dfb74",
+      "home_goals": 2,
+      "away_goals": 1,
+      "first_team_to_score": "POR",
+      "has_penalty": false,
+      "first_goal_scorer": "João Neves",
+      "reason": "Portugal empató con RD Congo y Uzbekistán compitió bien ante Colombia"
+    },
+    {
+      "match_id": "aee7aaf7-77a7-464c-bc7e-9e88216f52d0",
+      "home_goals": 2,
+      "away_goals": 1,
+      "first_team_to_score": "COL",
+      "has_penalty": false,
+      "first_goal_scorer": "Luis Díaz",
+      "reason": "RD Congo demostró ser más competitivo de lo esperado ante Portugal"
+    }
+  ]
+}

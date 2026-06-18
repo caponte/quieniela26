@@ -32,7 +32,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
 
   // Build query for this jornada's matches
   let rawMatches: MatchWithTeams[] | null = null
-  let previousResults: { id: string; homeCode: string; awayCode: string; homeScore: number; awayScore: number }[] = []
+  let previousResults: { id: string; homeCode: string; awayCode: string; homeScore: number; awayScore: number; homeTeamId: string | null; awayTeamId: string | null }[] = []
 
   if (info.isGroup) {
     const round = slug === "j1" ? 1 : slug === "j2" ? 2 : 3
