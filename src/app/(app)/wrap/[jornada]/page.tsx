@@ -236,6 +236,7 @@ export default async function WrapPage({ params }: Props) {
   // Per-user stats
   const userStatMap: Record<string, Omit<UserStat, "userId" | "name" | "avatarUrl">> = {}
   const goalScorerHits: GoalScorerHit[] = []
+  const exactScoreHits: { userId: string; matchId: string; score: string }[] = []
 
   for (const p of preds) {
     const m = matchMap[p.match_id]
@@ -245,7 +246,10 @@ export default async function WrapPage({ params }: Props) {
     s.predCount++
     s.points += p.match_points?.total_points ?? 0
 
-    if (p.home_goals === m.home_score && p.away_goals === m.away_score) s.exactScores++
+    if (p.home_goals === m.home_score && p.away_goals === m.away_score) {
+      s.exactScores++
+      exactScoreHits.push({ userId: p.user_id, matchId: p.match_id, score: `${m.home_score}-${m.away_score}` })
+    }
 
     const actualScorer = firstGoalMap[p.match_id]
     if (actualScorer && p.first_goal_scorer &&
@@ -308,11 +312,15 @@ export default async function WrapPage({ params }: Props) {
   }
   const topCorrectScorer = Object.entries(correctScorerCounts).sort((a, b) => b[1] - a[1])[0]
 
+  // Normalize "2-0" and "0-2" to the same key (higher number first)
+  const normScore = (a: number, b: number) =>
+    a >= b ? `${a}-${b}` : `${b}-${a}`
+
   // Global score curiosidades
   const globalScoreCounts: Record<string, number> = {}
   const globalExactCounts: Record<string, number> = {}
   for (const p of preds) {
-    const key = `${p.home_goals}-${p.away_goals}`
+    const key = normScore(p.home_goals, p.away_goals)
     globalScoreCounts[key] = (globalScoreCounts[key] ?? 0) + 1
     const m = matchMap[p.match_id]
     if (m && p.home_goals === m.home_score && p.away_goals === m.away_score) {
@@ -440,32 +448,44 @@ export default async function WrapPage({ params }: Props) {
             <span>🎯</span> Marcadores exactos
           </h2>
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
-            {byExact.slice(0, 10).map((u, i) => (
-              <div
-                key={u.userId}
-                className="flex items-center gap-3 px-4 py-3 border-b border-(--color-border)/40 last:border-0"
-              >
-                <span className="w-6 shrink-0 text-center">
-                  {i < 3 ? <span className="text-base">{MEDAL[i]}</span> : <span className="text-xs text-(--color-muted)">{i + 1}</span>}
-                </span>
-                <Avatar name={u.name} avatarUrl={u.avatarUrl} />
-                <span className="text-sm font-medium flex-1 min-w-0 truncate">{u.name}</span>
-                <div className="flex-1 max-w-[100px] hidden sm:block">
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-yellow-500/70 transition-all"
-                      style={{ width: `${(u.exactScores / maxExact) * 100}%` }}
-                    />
+            {byExact.slice(0, 10).map((u, i) => {
+              const hits = exactScoreHits.filter((h) => h.userId === u.userId)
+              return (
+                <div
+                  key={u.userId}
+                  className="flex items-start gap-3 px-4 py-3 border-b border-(--color-border)/40 last:border-0"
+                >
+                  <span className="w-6 shrink-0 text-center mt-0.5">
+                    {i < 3 ? <span className="text-base">{MEDAL[i]}</span> : <span className="text-xs text-(--color-muted)">{i + 1}</span>}
+                  </span>
+                  <Avatar name={u.name} avatarUrl={u.avatarUrl} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{u.name}</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
+                      {hits.map((h, j) => {
+                        const m = matchMap[h.matchId]
+                        return (
+                          <span key={j} className="text-xs text-(--color-muted)">
+                            {h.score}
+                            {m && (
+                              <span className="text-white/30 ml-1">
+                                ({m.home_team?.fifa_code} vs {m.away_team?.fifa_code})
+                              </span>
+                            )}
+                          </span>
+                        )
+                      })}
+                    </div>
                   </div>
+                  <span className="text-sm font-bold text-yellow-400 shrink-0 tabular-nums mt-0.5">
+                    {u.exactScores} exacto{u.exactScores !== 1 ? "s" : ""}
+                  </span>
+                  <span className="text-sm text-(--color-muted) shrink-0 tabular-nums hidden sm:block mt-0.5">
+                    {u.points} pts
+                  </span>
                 </div>
-                <span className="text-sm font-bold text-yellow-400 shrink-0 tabular-nums">
-                  {u.exactScores} exacto{u.exactScores !== 1 ? "s" : ""}
-                </span>
-                <span className="text-sm text-(--color-muted) shrink-0 tabular-nums hidden sm:block">
-                  {u.points} pts
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </section>
       )}

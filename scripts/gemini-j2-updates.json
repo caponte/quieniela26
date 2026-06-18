@@ -7,15 +7,6 @@
   },
   "updates": [
     {
-      "match_id": "09e1da83-53d8-4f6e-a7fb-956388d78f04",
-      "home_goals": 1,
-      "away_goals": 2,
-      "first_team_to_score": "KOR",
-      "has_penalty": false,
-      "first_goal_scorer": "Son Heung-min",
-      "reason": "Corea del Sol mostró un nivel ofensivo muy superior al esperado en J1, mientras que Chequia sufrió en transiciones defensivas."
-    },
-    {
       "match_id": "d52a9954-3f55-44c7-bee6-a20c3fe66408",
       "home_goals": 2,
       "away_goals": 0,
@@ -32,15 +23,6 @@
       "has_penalty": false,
       "first_goal_scorer": "Youssef En-Nesyri",
       "reason": "Marruecos ratificó en J1 su gran orden táctico y contundencia. Se adelantará en el marcador frente a Escocia gracias a su referencia ofensiva."
-    },
-    {
-      "match_id": "5f2fdb89-18ce-4c73-a85f-f6adf2cb2974",
-      "home_goals": 1,
-      "away_goals": 3,
-      "first_team_to_score": "USA",
-      "has_penalty": false,
-      "first_goal_scorer": "Christian Pulisic",
-      "reason": "Estados Unidos aprovechó su localía con un despliegue físico imponente en J1. Turquía dejó demasiados espacios atrás que Pulisic sabrá castigar."
     },
     {
       "match_id": "b3f96152-2a62-42e3-9668-18c87078afa7",

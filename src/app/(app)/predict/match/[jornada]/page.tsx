@@ -111,7 +111,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
     Array.from({ length: Math.ceil(teamIds.length / CHUNK) }, (_, i) =>
       supabase
         .from("players")
-        .select("id, name, position, jersey_number, team_id, fifa_player_id")
+        .select("id, name, position, jersey_number, team_id, fifa_player_id, picture_url")
         .in("team_id", teamIds.slice(i * CHUNK, (i + 1) * CHUNK))
         .order("jersey_number", { ascending: true })
     )
@@ -150,6 +150,29 @@ export default async function JornadaPage({ params, searchParams }: Props) {
     }
   }
 
+  // Fetch MatchTime from FIFA API for live matches (short revalidate for freshness)
+  const liveMatchTimeMap: Record<string, string> = {}
+  const liveWithFifa = rawMatches.filter((m) => m.status === "live" && m.fifa_match_id)
+  if (liveWithFifa.length > 0) {
+    const timeResults = await Promise.allSettled(
+      liveWithFifa.map(async (m) => {
+        const res = await fetch(
+          `https://api.fifa.com/api/v3/live/football/${m.fifa_match_id}`,
+          { next: { revalidate: 30 } }
+        )
+        if (!res.ok) return null
+        const data = await res.json()
+        const matchTime: string | null = data?.MatchTime ?? null
+        return { matchId: m.id, matchTime }
+      })
+    )
+    for (const r of timeResults) {
+      if (r.status === "fulfilled" && r.value?.matchTime) {
+        liveMatchTimeMap[r.value.matchId] = r.value.matchTime
+      }
+    }
+  }
+
   // Fetch match events (first goal + penalties) for live and finished matches
   const activeMatchIds = rawMatches.filter((m) => m.status === "live" || m.status === "finished").map((m) => m.id)
   const matchResultEventsMap: Record<string, MatchResultEvents> = {}
@@ -157,9 +180,9 @@ export default async function JornadaPage({ params, searchParams }: Props) {
   if (activeMatchIds.length > 0) {
     const { data: activeEvents } = await supabase
       .from("match_events")
-      .select("match_id, team_id, player_name, is_first_goal, type")
+      .select("match_id, team_id, player_name, is_first_goal, type, minute, is_own_goal, penalty_scored")
       .in("match_id", activeMatchIds)
-      .eq("is_own_goal", false) as unknown as { data: { match_id: string; team_id: string; player_name: string | null; is_first_goal: boolean; type: string }[] | null }
+      .order("minute", { ascending: true }) as unknown as { data: { match_id: string; team_id: string; player_name: string | null; is_first_goal: boolean; type: string; minute: number | null; is_own_goal: boolean; penalty_scored: boolean | null }[] | null }
 
     for (const m of rawMatches.filter((m) => m.status === "live" || m.status === "finished")) {
       const evts = (activeEvents ?? []).filter((e) => e.match_id === m.id)
@@ -168,6 +191,17 @@ export default async function JornadaPage({ params, searchParams }: Props) {
         firstGoalScorerName: firstGoalEvt?.player_name ?? null,
         firstGoalTeamId: firstGoalEvt?.team_id ?? null,
         hasPenalty: evts.some((e) => e.type === "penalty"),
+        ...(m.status === "live" ? {
+          goalEvents: evts.filter((e) => e.type === "goal").map((e) => ({
+            team_id: e.team_id,
+            player_name: e.player_name,
+            minute: e.minute,
+            is_own_goal: e.is_own_goal,
+            penalty_scored: e.penalty_scored,
+            is_first_goal: e.is_first_goal,
+          })),
+          matchTime: liveMatchTimeMap[m.id] ?? null,
+        } : {}),
       }
       if (m.status === "live") {
         liveStateMap[m.id] = {

@@ -29,10 +29,21 @@ export interface MatchPredictionRow {
   first_goal_scorer_id: string | null
 }
 
+export interface GoalEvent {
+  team_id: string
+  player_name: string | null
+  minute: number | null
+  is_own_goal: boolean
+  penalty_scored: boolean | null
+  is_first_goal: boolean
+}
+
 export interface MatchResultEvents {
   firstGoalScorerName: string | null
   firstGoalTeamId: string | null
   hasPenalty: boolean
+  goalEvents?: GoalEvent[]
+  matchTime?: string | null
 }
 
 export interface PlayerRow {
@@ -42,4 +53,5 @@ export interface PlayerRow {
   jersey_number: number | null
   team_id: string
   fifa_player_id: string | null
+  picture_url: string | null
 }

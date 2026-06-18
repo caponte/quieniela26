@@ -1,12 +1,17 @@
 /**
- * Maps our players to FIFA player IDs using name normalization.
- * Tries all matches per team until one with a non-empty Players[] roster is found.
- * Matching strategy (per team):
- *   1. Exact normalized full name
- *   2. Last word match (surname)
- *   3. First word match (first name) — last resort
- * Prints uncertain/unmatched cases for manual review.
- * Usage: npm run map-players
+ * Maps and upserts players for a single country using the FIFA API.
+ *
+ * Strategy per team:
+ *   1. Query our DB players for the team
+ *   2. Pull FIFA roster from the first match that has a non-empty Players[]
+ *   3. For each FIFA player:
+ *      - If found in DB (by fifa_player_id or name): UPDATE jersey_number, picture_url, fifa_player_id if missing
+ *      - If not found: INSERT
+ *   4. Report skipped / uncertain matches for manual review
+ *
+ * Usage:
+ *   npm run map-players -- --country ARG
+ *   npm run map-players -- --country ARG --dry-run
  */
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
@@ -25,13 +30,12 @@ const supabase = createClient(
 
 const FIFA_BASE = "https://api.fifa.com/api/v3";
 
-async function fifaFetch(path: string) {
-  const res = await fetch(`${FIFA_BASE}${path}`, { cache: "no-store" } as RequestInit);
+async function fifaFetch(endpoint: string) {
+  const res = await fetch(`${FIFA_BASE}${endpoint}`, { cache: "no-store" } as RequestInit);
   if (!res.ok) throw new Error(`fifa ${res.status}: ${await res.text()}`);
   return res.json();
 }
 
-/** Lowercase, remove accents, apostrophes, hyphens, extra spaces */
 function normalize(name: string): string {
   return name
     .toLowerCase()
@@ -42,7 +46,6 @@ function normalize(name: string): string {
     .trim();
 }
 
-/** FIFA sends "Harry KANE" or "KANE" — normalize to sentence case then apply normalize() */
 function normalizeFifaName(raw: string): string {
   const sentenceCase = raw.replace(/\b([A-ZÁÉÍÓÚÑÜÄÖ]{2,})\b/g, (m) =>
     m[0] + m.slice(1).toLowerCase()
@@ -50,251 +53,286 @@ function normalizeFifaName(raw: string): string {
   return normalize(sentenceCase);
 }
 
+function toProperCase(raw: string): string {
+  return raw
+    .split(" ")
+    .map((w) => w[0]?.toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function lastName(n: string): string { return n.split(" ").at(-1)!; }
 function firstName(n: string): string { return n.split(" ")[0]; }
 
 const FIFA_POSITION: Record<number, string> = { 0: "GK", 1: "DEF", 2: "MID", 3: "FWD" };
-
-/** Convert "Harry KANE" → "Harry Kane" */
-function toProperCase(raw: string): string {
-  return raw
-    .split(" ")
-    .map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
 
 interface OurPlayer {
   id: string;
   team_id: string;
   name: string;
   fifa_player_id: string | null;
+  jersey_number: number | null;
+  picture_url: string | null;
 }
 
 interface FifaPlayer {
   IdPlayer: string;
-  ShirtNumber: number;
+  IdTeam: string;
+  ShirtNumber: number | null;
+  Position: number;
   PlayerName: { Locale: string; Description: string }[];
   ShortName: { Locale: string; Description: string }[];
+  PlayerPicture: { PictureUrl: string } | null;
+}
+
+interface NormalizedFifaPlayer {
+  fp: FifaPlayer;
+  full: string;
+  short: string;
+  fullRaw: string;
+}
+
+function parseArgs() {
+  const args = process.argv.slice(2);
+  // Usage: npm run map-players ARG [--dry-run]
+  const country = args.find((a) => !a.startsWith("--"))?.toUpperCase() ?? null;
+  const dryRun = args.includes("--dry-run");
+  return { country, dryRun };
+}
+
+async function getFifaRosterForTeam(
+  teamId: string,
+  matchIds: string[]
+): Promise<{ players: FifaPlayer[]; fifaTeamId: string } | null> {
+  for (const fifaMatchId of matchIds) {
+    let detail: any;
+    try {
+      detail = await fifaFetch(`/live/football/${fifaMatchId}`);
+    } catch (e) {
+      console.warn(`  ⚠ Could not fetch match ${fifaMatchId}: ${e}`);
+      continue;
+    }
+
+    for (const side of ["HomeTeam", "AwayTeam"] as const) {
+      const team = detail[side];
+      if (!team?.Players?.length) continue;
+
+      // Find which side matches our team by cross-referencing match record
+      // We'll check both sides and pick the one that has players
+      // The caller will pass only matches where this team participates
+      const players: FifaPlayer[] = team.Players;
+      if (players.length > 0) {
+        return { players, fifaTeamId: team.IdTeam };
+      }
+    }
+  }
+  return null;
+}
+
+async function getRosterFromMatch(
+  fifaMatchId: string,
+  isHome: boolean
+): Promise<FifaPlayer[]> {
+  const detail = await fifaFetch(`/live/football/${fifaMatchId}`);
+  const side = isHome ? "HomeTeam" : "AwayTeam";
+  return detail[side]?.Players ?? [];
 }
 
 async function main() {
-  console.log("Fetching matches with fifa_match_id from DB...");
+  const { country, dryRun } = parseArgs();
+
+  if (!country) {
+    console.error("Usage: npm run map-players ARG [--dry-run]");
+    process.exit(1);
+  }
+
+  if (dryRun) console.log("--- DRY RUN — no DB writes ---\n");
+
+  // 1. Find the team in our DB
+  const { data: teamRow, error: teamErr } = await supabase
+    .from("teams")
+    .select("id, name, fifa_code")
+    .eq("fifa_code", country)
+    .maybeSingle() as unknown as { data: { id: string; name: string; fifa_code: string } | null; error: any };
+
+  if (teamErr || !teamRow) {
+    console.error(`Team with fifa_code="${country}" not found in DB.`);
+    process.exit(1);
+  }
+
+  console.log(`\n=== ${teamRow.name} (${country}) ===\n`);
+
+  // 2. Get matches for this team that have a fifa_match_id
   const { data: matches } = await supabase
     .from("matches")
     .select("id, fifa_match_id, home_team_id, away_team_id")
-    .not("fifa_match_id", "is", null) as unknown as {
+    .not("fifa_match_id", "is", null)
+    .or(`home_team_id.eq.${teamRow.id},away_team_id.eq.${teamRow.id}`) as unknown as {
       data: { id: string; fifa_match_id: string; home_team_id: string; away_team_id: string }[] | null
     };
 
   if (!matches?.length) {
-    console.error("No mapped matches found. Run npm run map-fifa first.");
+    console.error("No mapped matches found for this team. Run npm run map-fifa first.");
     process.exit(1);
   }
 
-  // All match IDs per team (to try multiple if first has empty roster)
-  const teamToMatches = new Map<string, string[]>();
+  // 3. Find FIFA roster — try each match until we get a non-empty Players[]
+  let fifaPlayers: FifaPlayer[] = [];
+
   for (const m of matches) {
-    if (!teamToMatches.has(m.home_team_id)) teamToMatches.set(m.home_team_id, []);
-    if (!teamToMatches.has(m.away_team_id)) teamToMatches.set(m.away_team_id, []);
-    teamToMatches.get(m.home_team_id)!.push(m.fifa_match_id);
-    teamToMatches.get(m.away_team_id)!.push(m.fifa_match_id);
-  }
-
-  console.log("Fetching our players from DB...");
-  const { data: ourPlayers } = await supabase
-    .from("players")
-    .select("id, team_id, name, fifa_player_id") as unknown as {
-      data: OurPlayer[] | null
-    };
-
-  if (!ourPlayers?.length) { console.error("No players in DB."); process.exit(1); }
-
-  const playersByTeam = new Map<string, OurPlayer[]>();
-  for (const p of ourPlayers) {
-    if (!playersByTeam.has(p.team_id)) playersByTeam.set(p.team_id, []);
-    playersByTeam.get(p.team_id)!.push(p);
-  }
-
-  // Fetch FIFA rosters — try all matches per team until we find a non-empty Players[]
-  const detailCache = new Map<string, any>(); // fifaMatchId → detail (null if fetch failed)
-  const fifaPlayersByTeam = new Map<string, FifaPlayer[]>();
-
-  const allTeams = [...teamToMatches.keys()];
-  console.log(`Resolving rosters for ${allTeams.length} teams across ${matches.length} matches...\n`);
-
-  for (const teamId of allTeams) {
-    const matchIds = teamToMatches.get(teamId)!;
-
-    for (const fifaMatchId of matchIds) {
-      if (!detailCache.has(fifaMatchId)) {
-        try {
-          detailCache.set(fifaMatchId, await fifaFetch(`/live/football/${fifaMatchId}`));
-        } catch (e) {
-          detailCache.set(fifaMatchId, null);
-          console.warn(`  ⚠ Could not fetch ${fifaMatchId}: ${e}`);
-        }
-      }
-
-      const detail = detailCache.get(fifaMatchId);
-      if (!detail) continue;
-
-      const match = matches.find(m => m.fifa_match_id === fifaMatchId)!;
-      const isHome = match.home_team_id === teamId;
-      const players: FifaPlayer[] = isHome
-        ? (detail.HomeTeam?.Players ?? [])
-        : (detail.AwayTeam?.Players ?? []);
-
+    const isHome = m.home_team_id === teamRow.id;
+    try {
+      const detail = await fifaFetch(`/live/football/${m.fifa_match_id}`);
+      const side = isHome ? "HomeTeam" : "AwayTeam";
+      const players: FifaPlayer[] = detail[side]?.Players ?? [];
       if (players.length > 0) {
-        fifaPlayersByTeam.set(teamId, players);
+        fifaPlayers = players;
+        console.log(`  Got ${players.length} players from match ${m.fifa_match_id}\n`);
         break;
       }
-    }
-
-    if (!fifaPlayersByTeam.has(teamId)) {
-      console.warn(`  ⚠ No roster found for team ${teamId} across ${matchIds.length} matches`);
+    } catch (e) {
+      console.warn(`  ⚠ Could not fetch match ${m.fifa_match_id}: ${e}`);
     }
   }
 
-  // Match players team by team
-  let mapped = 0;
+  if (!fifaPlayers.length) {
+    console.error("No roster found across any match. Try again after a match is played.");
+    process.exit(1);
+  }
+
+  // 4. Get our current players for this team
+  const { data: ourPlayers } = await supabase
+    .from("players")
+    .select("id, team_id, name, fifa_player_id, jersey_number, picture_url")
+    .eq("team_id", teamRow.id) as unknown as { data: OurPlayer[] | null };
+
+  const ourByFifaId = new Map<string, OurPlayer>();
+  for (const p of ourPlayers ?? []) {
+    if (p.fifa_player_id) ourByFifaId.set(p.fifa_player_id, p);
+  }
+
+  // 5. Normalize FIFA players for name matching
+  const fifaNormalized: NormalizedFifaPlayer[] = fifaPlayers.map((fp) => {
+    const fullRaw = fp.PlayerName?.[0]?.Description ?? "";
+    const shortRaw = fp.ShortName?.[0]?.Description ?? "";
+    return { fp, full: normalizeFifaName(fullRaw), short: normalizeFifaName(shortRaw), fullRaw };
+  });
+
+  // 6. Process each FIFA player
+  let updated = 0;
   let inserted = 0;
-  let alreadyMapped = 0;
-  const uncertain: { ourName: string; fifaName: string; confidence: string }[] = [];
-  const unmapped: string[] = [];
+  let skipped = 0;
+  const uncertain: { fifaName: string; ourName: string; confidence: string }[] = [];
 
-  for (const [teamId, fifaPlayers] of fifaPlayersByTeam) {
-    const ourTeamPlayers = playersByTeam.get(teamId) ?? [];
+  for (const { fp, full, short, fullRaw } of fifaNormalized) {
+    const jersey = fp.ShirtNumber ?? null;
+    const pictureUrl = fp.PlayerPicture?.PictureUrl ?? null;
+    const position = FIFA_POSITION[fp.Position] ?? "MID";
+    const properName = toProperCase(fp.PlayerName?.[0]?.Description ?? fp.ShortName?.[0]?.Description ?? "Unknown");
 
-    const fifaNormalized = fifaPlayers.map(fp => {
-      const fullRaw = fp.PlayerName?.[0]?.Description ?? "";
-      const shortRaw = fp.ShortName?.[0]?.Description ?? "";
-      return { fp, full: normalizeFifaName(fullRaw), short: normalizeFifaName(shortRaw), fullRaw };
-    });
+    // --- Find match in our DB ---
+    let ourPlayer: OurPlayer | null = ourByFifaId.get(fp.IdPlayer) ?? null;
+    let confidence = "fifa_id";
 
-    const usedFifaIds = new Set<string>();
+    // Fallback: name matching if not found by FIFA ID
+    if (!ourPlayer) {
+      const ourTeamPlayers = ourPlayers ?? [];
 
-    for (const ourPlayer of ourTeamPlayers) {
-      if (ourPlayer.fifa_player_id) { alreadyMapped++; continue; }
+      const byExact = ourTeamPlayers.find(
+        (p) => !p.fifa_player_id && (normalize(p.name) === full || normalize(p.name) === short)
+      );
+      if (byExact) { ourPlayer = byExact; confidence = "exact"; }
 
-      const ourNorm = normalize(ourPlayer.name);
-      const ourLast = lastName(ourNorm);
-      const ourFirst = firstName(ourNorm);
-
-      let match: typeof fifaNormalized[number] | null = null;
-      let confidence = "";
-
-      // 1. Exact full or short name
-      match = fifaNormalized.find(f =>
-        !usedFifaIds.has(f.fp.IdPlayer) && (f.full === ourNorm || f.short === ourNorm)
-      ) ?? null;
-      if (match) confidence = "exact";
-
-      // 2. Surname match
-      if (!match) {
-        const candidates = fifaNormalized.filter(f =>
-          !usedFifaIds.has(f.fp.IdPlayer) &&
-          (lastName(f.full) === ourLast || lastName(f.short) === ourLast)
+      if (!ourPlayer) {
+        const bySurname = ourTeamPlayers.filter(
+          (p) => !p.fifa_player_id && lastName(normalize(p.name)) === lastName(full)
         );
-        if (candidates.length === 1) {
-          match = candidates[0]; confidence = "surname";
-        } else if (candidates.length > 1) {
-          const refined = candidates.find(f => firstName(f.full) === ourFirst);
-          if (refined) { match = refined; confidence = "surname+first"; }
-          else { match = candidates[0]; confidence = `surname-ambiguous(${candidates.length})`; }
+        if (bySurname.length === 1) { ourPlayer = bySurname[0]; confidence = "surname"; }
+        else if (bySurname.length > 1) {
+          const refined = bySurname.find((p) => firstName(normalize(p.name)) === firstName(full));
+          ourPlayer = refined ?? bySurname[0];
+          confidence = refined ? "surname+first" : `surname-ambiguous(${bySurname.length})`;
         }
       }
 
-      // 3. First name only (unique in team)
-      if (!match) {
-        const candidates = fifaNormalized.filter(f =>
-          !usedFifaIds.has(f.fp.IdPlayer) && firstName(f.full) === ourFirst
+      if (!ourPlayer) {
+        const byFirst = (ourPlayers ?? []).filter(
+          (p) => !p.fifa_player_id && firstName(normalize(p.name)) === firstName(full)
         );
-        if (candidates.length === 1) { match = candidates[0]; confidence = "first-name-only"; }
+        if (byFirst.length === 1) { ourPlayer = byFirst[0]; confidence = "first-name-only"; }
       }
+    }
 
-      if (!match) {
-        unmapped.push(ourPlayer.name);
+    const isUncertain = confidence.includes("ambiguous") || confidence === "first-name-only";
+
+    // --- UPDATE existing player ---
+    if (ourPlayer) {
+      const needsUpdate =
+        !ourPlayer.fifa_player_id ||
+        ourPlayer.jersey_number !== jersey ||
+        ourPlayer.picture_url !== pictureUrl;
+
+      if (!needsUpdate) {
+        skipped++;
         continue;
       }
 
-      usedFifaIds.add(match.fp.IdPlayer);
+      if (isUncertain) uncertain.push({ fifaName: fullRaw, ourName: ourPlayer.name, confidence });
 
-      const isUncertain = confidence.includes("ambiguous") || confidence === "first-name-only";
-      if (isUncertain) uncertain.push({ ourName: ourPlayer.name, fifaName: match.fullRaw, confidence });
+      const tag = isUncertain ? ` ⚠ [${confidence}]` : "";
+      console.log(`  ✓ UPDATE ${ourPlayer.name} → #${jersey} ${fp.IdPlayer} 🖼 ${pictureUrl ? "yes" : "no"}${tag}`);
 
-      const { error } = await supabase
-        .from("players")
-        .update({ fifa_player_id: match.fp.IdPlayer } as any)
-        .eq("id", ourPlayer.id);
-
-      if (error) {
-        console.error(`  Error updating ${ourPlayer.name}:`, error.message);
+      if (!dryRun) {
+        const { error } = await supabase
+          .from("players")
+          .update({
+            fifa_player_id: fp.IdPlayer,
+            jersey_number: jersey,
+            picture_url: pictureUrl,
+          } as any)
+          .eq("id", ourPlayer.id);
+        if (error) console.error(`    Error: ${error.message}`);
+        else updated++;
       } else {
-        const tag = isUncertain ? ` ⚠ [${confidence}]` : "";
-        console.log(`  ✓ ${ourPlayer.name} → ${match.fp.IdPlayer} (FIFA: ${match.fullRaw})${tag}`);
-        mapped++;
+        updated++;
       }
-    }
 
-    // Insert FIFA players that had no match in our DB
-    for (const { fp, fullRaw } of fifaNormalized) {
-      if (usedFifaIds.has(fp.IdPlayer)) continue;
+      // Mark as used so we don't double-match
+      if (ourPlayer.fifa_player_id) ourByFifaId.delete(ourPlayer.fifa_player_id);
 
-      const name = toProperCase(fp.PlayerName?.[0]?.Description ?? fp.ShortName?.[0]?.Description ?? "Unknown");
-      const position = FIFA_POSITION[fp.Position] ?? "MF";
-      const jerseyNumber: number | null = fp.ShirtNumber ?? null;
+    // --- INSERT new player ---
+    } else {
+      console.log(`  + INSERT ${properName} (#${jersey} ${position}) → ${fp.IdPlayer}`);
 
-      // Skip if already inserted in a previous run
-      const { data: existing } = await supabase
-        .from("players")
-        .select("id")
-        .eq("fifa_player_id", fp.IdPlayer)
-        .maybeSingle() as unknown as { data: { id: string } | null };
-      if (existing) continue;
-
-      const { error } = await supabase
-        .from("players")
-        .insert({
-          team_id: teamId,
-          name,
-          position,
-          jersey_number: jerseyNumber,
-          fifa_player_id: fp.IdPlayer,
-        } as any);
-
-      if (error) {
-        console.error(`  Error inserting ${name}:`, error.message);
+      if (!dryRun) {
+        const { error } = await supabase
+          .from("players")
+          .insert({
+            team_id: teamRow.id,
+            name: properName,
+            position,
+            jersey_number: jersey,
+            fifa_player_id: fp.IdPlayer,
+            picture_url: pictureUrl,
+          } as any);
+        if (error) console.error(`    Error: ${error.message}`);
+        else inserted++;
       } else {
-        console.log(`  + inserted ${name} (#${jerseyNumber} ${position}) → ${fp.IdPlayer}`);
         inserted++;
       }
     }
   }
 
-  // Players in teams with no FIFA roster at all
-  for (const [teamId, teamPlayers] of playersByTeam) {
-    if (!fifaPlayersByTeam.has(teamId)) {
-      for (const p of teamPlayers) {
-        if (!p.fifa_player_id) unmapped.push(p.name);
-      }
-    }
-  }
-
+  // Summary
   console.log(`\n── Summary ──────────────────────────────`);
-  console.log(`Mapped:         ${mapped}`);
-  console.log(`Inserted new:   ${inserted}`);
-  console.log(`Already mapped: ${alreadyMapped}`);
-  console.log(`Unmapped:       ${unmapped.length}`);
-  console.log(`Uncertain:      ${uncertain.length}`);
-
-  if (unmapped.length > 0) {
-    console.log(`\n── Unmapped ─────────────────────────────`);
-    for (const n of unmapped) console.log(`  ✗ ${n}`);
-  }
+  console.log(`Updated:  ${updated}`);
+  console.log(`Inserted: ${inserted}`);
+  console.log(`Skipped:  ${skipped} (already complete)`);
 
   if (uncertain.length > 0) {
-    console.log(`\n── Uncertain (review manually) ──────────`);
-    for (const u of uncertain) console.log(`  ⚠ "${u.ourName}" → "${u.fifaName}" [${u.confidence}]`);
+    console.log(`\n── Uncertain matches (review manually) ──`);
+    for (const u of uncertain) {
+      console.log(`  ⚠ FIFA "${u.fifaName}" → DB "${u.ourName}" [${u.confidence}]`);
+    }
   }
 }
 

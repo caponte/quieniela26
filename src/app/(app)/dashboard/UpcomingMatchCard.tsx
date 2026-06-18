@@ -51,6 +51,7 @@ export interface MatchCardData {
     first_team_to_score: string | null
     has_penalty: boolean
     first_goal_scorer: string | null
+    first_goal_scorer_picture_url: string | null
     isStarterPick: boolean | null
   } | null
   jornadaSlug: string
@@ -58,6 +59,7 @@ export interface MatchCardData {
   leagueTotal: number | null
   leagueFullPreds: LeagueFullPred[] | null
   goalEvents?: GoalEvent[]
+  matchTime?: string | null
 }
 
 type LiveBreakdownKey = keyof Omit<import("@/lib/utils/livePoints").LivePointsBreakdown, "total">
@@ -141,7 +143,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
           )}
 
           <span className="text-[10px] text-(--color-muted) leading-tight text-center">
-            {isLive && <span className="text-green-400 font-semibold">EN VIVO · </span>}
+            {isLive && <span className="text-green-400 font-semibold">EN VIVO{match.matchTime ? ` · ${match.matchTime}` : ""} · </span>}
             {match.group_name ? `Grupo ${match.group_name}` : stageLabel(match.stage)}
             {" · "}M{match.match_number}
           </span>
@@ -238,7 +240,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
                 <div className="grid grid-cols-3 gap-2">
                   <DetailCell label="Primer gol" value={firstScorerTeam ?? "Ninguno"} />
                   <DetailCell label="Penales" value={pred.has_penalty ? "Sí" : "No"} />
-                  <DetailCell label="Goleador" value={pred.first_goal_scorer ?? "—"} isStarter={pred.isStarterPick} />
+                  <DetailCell label="Goleador" value={pred.first_goal_scorer ?? "—"} isStarter={pred.isStarterPick} pictureUrl={pred.first_goal_scorer_picture_url} />
                 </div>
               </div>
 
@@ -371,11 +373,18 @@ function TeamFlag({ team, size = 24 }: { team: { flag_url: string | null; name: 
   )
 }
 
-function DetailCell({ label, value, isStarter }: { label: string; value: string; isStarter?: boolean | null }) {
+function DetailCell({ label, value, isStarter, pictureUrl }: { label: string; value: string; isStarter?: boolean | null; pictureUrl?: string | null }) {
   return (
     <div className="bg-white/4 rounded-lg px-2 py-2 text-center">
       <p className="text-[10px] text-(--color-muted) uppercase tracking-wide mb-0.5">{label}</p>
-      <p className="text-xs font-semibold truncate">{value}</p>
+      <div className="flex items-center justify-center gap-1.5">
+        {pictureUrl && (
+          <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0">
+            <Image src={pictureUrl} alt={value} fill sizes="120px" quality={90} className="object-cover object-top scale-[2.2] origin-[50%_8%]" />
+          </div>
+        )}
+        <p className="text-xs font-semibold truncate">{value}</p>
+      </div>
       {isStarter === true && (
         <span className="text-[9px] font-semibold text-emerald-400/80 uppercase tracking-wide">titular</span>
       )}

@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
       { hostname: "lh3.googleusercontent.com" },
       { hostname: "avatars.slack-edge.com" },
       { hostname: "miro.medium.com" },
+      { hostname: "digitalhub.fifa.com" },
     ],
   },
 };

@@ -5,7 +5,7 @@ import Image from "next/image"
 import { saveMatchPrediction } from "@/lib/actions/match"
 import { isMatchLocked } from "@/lib/utils/jornada"
 import type { JornadaSlug } from "@/lib/utils/jornada"
-import type { MatchWithTeams, MatchPredictionRow, PlayerRow, Team, MatchResultEvents } from "@/lib/utils/matchTypes"
+import type { MatchWithTeams, MatchPredictionRow, PlayerRow, Team, MatchResultEvents, GoalEvent } from "@/lib/utils/matchTypes"
 
 type Match = MatchWithTeams
 type Player = PlayerRow
@@ -563,6 +563,15 @@ function ScorerGroup({
             : "text-(--color-muted) hover:bg-white/5 hover:text-white"
         } disabled:opacity-50`}
       >
+        {p.picture_url ? (
+          <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
+            <Image src={p.picture_url} alt={p.name} fill sizes="120px" quality={90} className="object-cover object-top scale-[2.2] origin-[50%_8%]" />
+          </div>
+        ) : (
+          <span className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold shrink-0">
+            {p.name[0]?.toUpperCase() ?? "?"}
+          </span>
+        )}
         {p.jersey_number !== null && (
           <span className="text-xs w-5 text-right opacity-60 tabular-nums">{p.jersey_number}</span>
         )}
@@ -620,6 +629,12 @@ function MiniFlag({ url, name }: { url: string | null; name: string }) {
   )
 }
 
+function lastName(fullName: string | null): string {
+  if (!fullName) return "—"
+  const parts = fullName.trim().split(" ")
+  return parts[parts.length - 1]
+}
+
 function LockedMatchSummary({ match, state, hasPrediction, leaguePreds, resultEvents }: {
   match: Match
   state: MatchState
@@ -641,7 +656,7 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds, resultEv
           {isLive && (
             <p className="text-xs font-bold uppercase tracking-widest text-green-400 mb-2 flex items-center justify-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
-              En vivo
+              En vivo{resultEvents?.matchTime ? ` · ${resultEvents.matchTime}` : ""}
             </p>
           )}
           {!isLive && <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-3">Resultado</p>}
@@ -662,6 +677,30 @@ function LockedMatchSummary({ match, state, hasPrediction, leaguePreds, resultEv
               <span className="text-xs text-(--color-muted)">{match.away_team?.name ?? "—"}</span>
             </div>
           </div>
+
+          {/* Live goal events */}
+          {isLive && resultEvents?.goalEvents && resultEvents.goalEvents.length > 0 && (() => {
+            const homeGoals = resultEvents.goalEvents!.filter((g: GoalEvent) => g.team_id === match.home_team?.id)
+            const awayGoals = resultEvents.goalEvents!.filter((g: GoalEvent) => g.team_id === match.away_team?.id)
+            return (
+              <div className="mt-3 pt-3 border-t border-green-500/20 flex justify-between gap-2">
+                <div className="flex flex-col gap-0.5 flex-1 items-start">
+                  {homeGoals.map((g: GoalEvent, i: number) => (
+                    <span key={i} className="text-[11px] text-white/50 leading-tight">
+                      ⚽ {lastName(g.player_name)}{g.minute ? ` ${g.minute}'` : ""}{g.penalty_scored ? " (P)" : ""}{g.is_own_goal ? " (OG)" : ""}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-0.5 flex-1 items-end">
+                  {awayGoals.map((g: GoalEvent, i: number) => (
+                    <span key={i} className="text-[11px] text-white/50 leading-tight">
+                      {g.penalty_scored ? "(P) " : ""}{g.is_own_goal ? "(OG) " : ""}{g.minute ? `${g.minute}' ` : ""}{lastName(g.player_name)} ⚽
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Match result events */}
           {!isLive && resultEvents && (

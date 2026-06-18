@@ -123,20 +123,44 @@ export default async function DashboardPage() {
   const liveMatches = liveMatchesResult.data ?? [];
   const finishedMatches = (finishedMatchesResult.data ?? []).slice().reverse(); // chronological
 
-  // Fetch all goal events for live matches (for state calc + display)
+  // Fetch all goal events + MatchTime for live matches
   const liveMatchStateMap: Record<string, LiveMatchState> = {};
   const liveMatchEventsMap: Record<string, { team_id: string; player_name: string | null; minute: number | null; is_own_goal: boolean; penalty_scored: boolean | null; is_first_goal: boolean }[]> = {};
+  const liveMatchTimeMap: Record<string, string> = {};
   if (liveMatches.length > 0) {
     const liveIds = liveMatches.map((m) => m.id);
-    const { data: liveEvents } = await supabase
-      .from("match_events")
-      .select("match_id, team_id, player_name, minute, is_first_goal, is_own_goal, penalty_scored, type")
-      .in("match_id", liveIds)
-      .eq("type", "goal")
-      .order("minute", { ascending: true }) as unknown as { data: { match_id: string; team_id: string; player_name: string | null; minute: number | null; is_first_goal: boolean; is_own_goal: boolean; penalty_scored: boolean | null; type: string }[] | null };
+    const liveWithFifa = liveMatches.filter((m) => m.fifa_match_id);
+
+    const [liveEventsResult, liveTimeResults] = await Promise.all([
+      supabase
+        .from("match_events")
+        .select("match_id, team_id, player_name, minute, is_first_goal, is_own_goal, penalty_scored, type")
+        .in("match_id", liveIds)
+        .eq("type", "goal")
+        .order("minute", { ascending: true }) as unknown as Promise<{ data: { match_id: string; team_id: string; player_name: string | null; minute: number | null; is_first_goal: boolean; is_own_goal: boolean; penalty_scored: boolean | null; type: string }[] | null }>,
+
+      Promise.allSettled(
+        liveWithFifa.map(async (m) => {
+          const res = await fetch(
+            `https://api.fifa.com/api/v3/live/football/${m.fifa_match_id}`,
+            { next: { revalidate: 30 } }
+          );
+          if (!res.ok) return null;
+          const data = await res.json();
+          const matchTime: string | null = data?.MatchTime ?? null;
+          return { matchId: m.id, matchTime };
+        })
+      ),
+    ]);
+
+    for (const r of liveTimeResults) {
+      if (r.status === "fulfilled" && r.value?.matchTime) {
+        liveMatchTimeMap[r.value.matchId] = r.value.matchTime;
+      }
+    }
 
     for (const m of liveMatches) {
-      const matchEvts = (liveEvents ?? []).filter((e) => e.match_id === m.id);
+      const matchEvts = (liveEventsResult.data ?? []).filter((e) => e.match_id === m.id);
       const firstEvt = matchEvts.find((e) => e.is_first_goal);
       liveMatchStateMap[m.id] = {
         homeScore: m.home_score ?? 0,
@@ -219,8 +243,8 @@ export default async function DashboardPage() {
       })
     ),
     scorerIds.length
-      ? supabase.from("players").select("id, fifa_player_id").in("id", scorerIds) as unknown as Promise<{ data: { id: string; fifa_player_id: string | null }[] | null }>
-      : Promise.resolve({ data: [] as { id: string; fifa_player_id: string | null }[] }),
+      ? supabase.from("players").select("id, fifa_player_id, picture_url").in("id", scorerIds) as unknown as Promise<{ data: { id: string; fifa_player_id: string | null; picture_url: string | null }[] | null }>
+      : Promise.resolve({ data: [] as { id: string; fifa_player_id: string | null; picture_url: string | null }[] }),
   ])
 
   const starterFifaIdsByMatchId: Record<string, Set<string>> = {}
@@ -231,6 +255,9 @@ export default async function DashboardPage() {
   }
   const scorerFifaPlayerIdMap = Object.fromEntries(
     (scorerPlayersRes.data ?? []).filter((p) => p.fifa_player_id).map((p) => [p.id, p.fifa_player_id!])
+  )
+  const scorerPictureUrlMap = Object.fromEntries(
+    (scorerPlayersRes.data ?? []).map((p) => [p.id, p.picture_url])
   )
 
   function isStarterPick(matchId: string, scorerId: string | null): boolean | null {
@@ -309,7 +336,11 @@ export default async function DashboardPage() {
   function buildPred(m: MatchRow) {
     const p = predByMatchId[m.id]
     if (!p) return null
-    return { ...p, isStarterPick: isStarterPick(m.id, p.first_goal_scorer_id) }
+    return {
+      ...p,
+      first_goal_scorer_picture_url: p.first_goal_scorer_id ? (scorerPictureUrlMap[p.first_goal_scorer_id] ?? null) : null,
+      isStarterPick: isStarterPick(m.id, p.first_goal_scorer_id),
+    }
   }
 
   const matchCards: MatchCardData[] = matches.map((m) => ({
@@ -329,6 +360,7 @@ export default async function DashboardPage() {
     leagueTotal: firstLeagueMemberIds.length > 0 ? firstLeagueMemberIds.length : null,
     leagueFullPreds: firstLeagueMemberIds.length > 0 ? (leagueFullPredsPerMatch[m.id] ?? []) : null,
     goalEvents: liveMatchEventsMap[m.id] ?? [],
+    matchTime: liveMatchTimeMap[m.id] ?? null,
   }));
 
   // Leaderboard
