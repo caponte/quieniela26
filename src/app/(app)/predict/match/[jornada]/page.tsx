@@ -32,6 +32,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
 
   // Build query for this jornada's matches
   let rawMatches: MatchWithTeams[] | null = null
+  let previousResults: { id: string; homeCode: string; awayCode: string; homeScore: number; awayScore: number }[] = []
 
   if (info.isGroup) {
     const round = slug === "j1" ? 1 : slug === "j2" ? 2 : 3
@@ -50,6 +51,24 @@ export default async function JornadaPage({ params, searchParams }: Props) {
 
     const roundIds = getGroupRoundMatchIds(allGroupMatches ?? [], round as 1 | 2 | 3)
     rawMatches = (allGroupMatches ?? []).filter((m) => roundIds.has(m.id))
+
+    if (round > 1) {
+      const prevIds = new Set<string>()
+      for (let r = 1; r < round; r++) {
+        getGroupRoundMatchIds(allGroupMatches ?? [], r as 1 | 2 | 3).forEach((id) => prevIds.add(id))
+      }
+      previousResults = (allGroupMatches ?? [])
+        .filter((m) => prevIds.has(m.id) && m.home_score !== null && m.away_score !== null)
+        .map((m) => ({
+          id: m.id,
+          homeCode: m.home_team?.fifa_code ?? "?",
+          awayCode: m.away_team?.fifa_code ?? "?",
+          homeScore: m.home_score!,
+          awayScore: m.away_score!,
+          homeTeamId: m.home_team?.id ?? null,
+          awayTeamId: m.away_team?.id ?? null,
+        }))
+    }
   } else {
     const { data } = await supabase
       .from("matches")
@@ -260,6 +279,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
         starterFifaIdsByMatchId={Object.fromEntries(
           Object.entries(starterFifaIdsByMatchId).map(([k, v]) => [k, [...v]])
         )}
+        previousResults={previousResults}
         initialMatchId={initialMatchId}
       />
     </>

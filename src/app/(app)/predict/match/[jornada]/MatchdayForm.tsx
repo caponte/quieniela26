@@ -60,6 +60,16 @@ interface MatchState {
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
+interface PreviousResult {
+  id: string
+  homeCode: string
+  awayCode: string
+  homeScore: number
+  awayScore: number
+  homeTeamId: string | null
+  awayTeamId: string | null
+}
+
 interface Props {
   slug: JornadaSlug
   label: string
@@ -69,6 +79,7 @@ interface Props {
   leaguePredsByMatchId: Record<string, LeagueMemberPred[]>
   matchResultEventsByMatchId: Record<string, MatchResultEvents>
   starterFifaIdsByMatchId: Record<string, string[]>
+  previousResults?: PreviousResult[]
   initialMatchId?: string
 }
 
@@ -104,7 +115,7 @@ const POS_ORDER: Record<string, number> = { FWD: 0, MID: 1, DEF: 2, GK: 3 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId, matchResultEventsByMatchId, starterFifaIdsByMatchId, initialMatchId }: Props) {
+export default function MatchdayForm({ slug, label, matches, predictionsByMatchId, players, leaguePredsByMatchId, matchResultEventsByMatchId, starterFifaIdsByMatchId, previousResults, initialMatchId }: Props) {
   const [current, setCurrent] = useState(() => {
     if (!initialMatchId) return 0
     const idx = matches.findIndex((m) => m.id === initialMatchId)
@@ -237,9 +248,21 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
         </p>
 
         <div className="flex items-center justify-center gap-6">
-          <TeamDisplay team={match.home_team} side="home" />
+          <TeamDisplay
+            team={match.home_team}
+            side="home"
+            prevResult={previousResults?.find(
+              (r) => r.homeTeamId === match.home_team?.id || r.awayTeamId === match.home_team?.id
+            )}
+          />
           <span className="text-2xl font-bold text-(--color-muted)">vs</span>
-          <TeamDisplay team={match.away_team} side="away" />
+          <TeamDisplay
+            team={match.away_team}
+            side="away"
+            prevResult={previousResults?.find(
+              (r) => r.homeTeamId === match.away_team?.id || r.awayTeamId === match.away_team?.id
+            )}
+          />
         </div>
 
         {locked && (
@@ -429,15 +452,34 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-function TeamDisplay({ team, side }: { team: Team | null; side: "home" | "away" }) {
+function TeamDisplay({ team, prevResult }: { team: Team | null; side: "home" | "away"; prevResult?: PreviousResult }) {
+  const isHome = prevResult && team?.id === prevResult.homeTeamId
+  const oppCode = prevResult ? (isHome ? prevResult.awayCode : prevResult.homeCode) : null
+  const myScore = prevResult ? (isHome ? prevResult.homeScore : prevResult.awayScore) : null
+  const oppScore = prevResult ? (isHome ? prevResult.awayScore : prevResult.homeScore) : null
+
   return (
-    <div className={`flex flex-col items-center gap-1 w-24 ${side === "away" ? "items-center" : "items-center"}`}>
+    <div className="flex flex-col items-center gap-1 w-24">
       {team?.flag_url ? (
         <Image src={team.flag_url} alt={team.name} width={40} height={28} className="rounded-sm object-cover" />
       ) : (
         <div className="w-10 h-7 bg-white/10 rounded-sm" />
       )}
       <span className="text-sm font-semibold text-center leading-tight">{team?.name ?? "—"}</span>
+      {prevResult && oppCode !== null && myScore !== null && oppScore !== null && (() => {
+        const won = myScore > oppScore
+        const draw = myScore === oppScore
+        const cls = won
+          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+          : draw
+            ? "bg-white/8 text-white/50 border border-white/12"
+            : "bg-red-500/15 text-red-400 border border-red-500/30"
+        return (
+          <span className={`text-[10px] tabular-nums rounded-full px-2 py-0.5 ${cls}`}>
+            vs. {oppCode} {myScore}–{oppScore}
+          </span>
+        )
+      })()}
     </div>
   )
 }
@@ -569,6 +611,7 @@ function ScorerGroup({
     </>
   )
 }
+
 
 function MiniFlag({ url, name }: { url: string | null; name: string }) {
   if (!url) return <div className="w-4 h-2.75 rounded-sm bg-white/10 shrink-0" />
