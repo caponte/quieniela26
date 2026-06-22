@@ -86,6 +86,19 @@ export interface AddEventInput {
   penaltyScored: boolean | null
 }
 
+async function recalcIfFinished(supabase: Awaited<ReturnType<typeof requireAdmin>>, matchId: string) {
+  const { data: m } = await supabase
+    .from("matches")
+    .select("status")
+    .eq("id", matchId)
+    .single() as unknown as { data: { status: string } | null }
+  if (m?.status === "finished") {
+    await (supabase.rpc as unknown as (fn: string, args: object) => Promise<unknown>)(
+      "calculate_match_points", { p_match_id: matchId }
+    )
+  }
+}
+
 export async function addMatchEvent(input: AddEventInput) {
   const supabase = await requireAdmin()
 
@@ -103,6 +116,7 @@ export async function addMatchEvent(input: AddEventInput) {
   })
 
   if (error) return { error: error.message }
+  await recalcIfFinished(supabase, input.matchId)
   revalidatePath(`/admin/match/${input.matchId}`)
   return { success: true }
 }
@@ -115,6 +129,7 @@ export async function deleteMatchEvent(eventId: string, matchId: string) {
   )().eq("id", eventId)
 
   if (error) return { error: error.message }
+  await recalcIfFinished(supabase, matchId)
   revalidatePath(`/admin/match/${matchId}`)
   return { success: true }
 }

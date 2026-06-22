@@ -111,7 +111,7 @@ export default async function WrapPage({ params }: Props) {
     const { data: allFinished } = await supabase
       .from("matches")
       .select("id")
-      .eq("status", "finished")
+      .eq("status", "finished") as unknown as { data: { id: string }[] | null }
     ids = (allFinished ?? []).map((m) => m.id)
     totalMatchCount = ids.length
   } else if (jornadaInfo!.isGroup) {
