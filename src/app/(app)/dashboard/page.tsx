@@ -402,6 +402,21 @@ export default async function DashboardPage() {
       {/* Bracket countdown */}
       {showBracketCountdown && <BracketCountdown />}
 
+      {/* Live matches */}
+      {liveMatchCards.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+            <h2 className="font-bold text-lg text-green-400">En vivo</h2>
+          </div>
+          <div className="space-y-2">
+            {liveMatchCards.map((match) => (
+              <UpcomingMatchCard key={match.id} match={match} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Quick actions */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link href="/predict/bracket" className="group relative overflow-hidden rounded-2xl h-44 flex flex-col justify-end">
@@ -414,7 +429,7 @@ export default async function DashboardPage() {
           />
           <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
           <div className="relative px-5 pb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-white/50 mb-0.5">Modo Bracket</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-yellow-400 mb-0.5">Modo Bracket</p>
             <h2 className="font-bold text-lg text-white leading-tight">Predice el torneo completo</h2>
             <p className="text-white/60 text-xs mt-1 leading-snug">Grupos, octavos, cuartos, semis y la gran final.</p>
           </div>
@@ -433,7 +448,7 @@ export default async function DashboardPage() {
           />
           <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
           <div className="relative px-5 pb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-white/50 mb-0.5">Modo Jornada</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-yellow-400 mb-0.5">Modo Jornada</p>
             <h2 className="font-bold text-lg text-white leading-tight">Predice partido a partido</h2>
             <p className="text-white/60 text-xs mt-1 leading-snug">Hasta 10 min antes del kick-off, con bonos por goleador y penales.</p>
           </div>
@@ -444,21 +459,6 @@ export default async function DashboardPage() {
 
         <JornadaWrapCard />
       </section>
-
-      {/* Live matches */}
-      {liveMatchCards.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
-            <h2 className="font-bold text-lg text-green-400">En vivo</h2>
-          </div>
-          <div className="space-y-2">
-            {liveMatchCards.map((match) => (
-              <UpcomingMatchCard key={match.id} match={match} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Finished matches */}
       {finishedMatches.length > 0 && (

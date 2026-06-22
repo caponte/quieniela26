@@ -142,11 +142,16 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
             <span className="text-xs font-semibold text-(--color-muted) tracking-widest">vs</span>
           )}
 
-          <span className="text-[10px] text-(--color-muted) leading-tight text-center">
-            {isLive && <span className="text-green-400 font-semibold">EN VIVO{match.matchTime ? ` · ${match.matchTime}` : ""} · </span>}
-            {match.group_name ? `Grupo ${match.group_name}` : stageLabel(match.stage)}
-            {" · "}M{match.match_number}
-          </span>
+          <div className="flex flex-col items-center leading-tight text-center gap-0.5">
+            {isLive && (
+              <span className="text-[10px] text-green-400 font-semibold">
+                EN VIVO{match.matchTime ? ` · ${match.matchTime}` : ""}
+              </span>
+            )}
+            <span className="text-[10px] text-(--color-muted)">
+              {match.group_name ? `Grupo ${match.group_name}` : stageLabel(match.stage)}
+            </span>
+          </div>
 
           <span className="text-[10px] text-(--color-muted)">{formatDate(match.match_date)}</span>
 

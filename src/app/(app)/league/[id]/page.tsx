@@ -218,6 +218,11 @@ export default async function LeagueDetailPage({ params }: Props) {
               </div>
             )
           })}
+          <div className="px-3 py-2 border-t border-(--color-border)">
+            <Link href={`/league/${rawLeague.id}/jornada`} className="text-[10px] text-(--color-muted) hover:text-white transition-colors">
+              Ver detalle →
+            </Link>
+          </div>
         </div>
 
         {/* Bracket */}
@@ -251,6 +256,13 @@ export default async function LeagueDetailPage({ params }: Props) {
               </div>
             )
           })}
+          {isBracketLocked && (
+            <div className="px-3 py-2 border-t border-(--color-border)">
+              <Link href={`/league/${rawLeague.id}/bracket`} className="text-[10px] text-(--color-muted) hover:text-white transition-colors">
+                Ver llaves →
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Total */}

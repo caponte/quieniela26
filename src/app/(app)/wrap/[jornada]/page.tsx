@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
-import { getGroupRoundMatchIds, JORNADA_INFO } from "@/lib/utils/jornada"
+import { getGroupRoundMatchIds, JORNADA_INFO, isValidJornadaSlug } from "@/lib/utils/jornada"
 import { notFound, redirect } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { Breadcrumb } from "@/components/Breadcrumb"
+import { WrapSelector } from "./WrapSelector"
 
 interface WrapMatch {
   id: string
@@ -91,27 +92,73 @@ function Avatar({ name, avatarUrl, size = 28 }: { name: string; avatarUrl: strin
 export default async function WrapPage({ params }: Props) {
   const { jornada } = await params
 
-  const roundMap: Record<string, 1 | 2 | 3> = { j1: 1, j2: 2, j3: 3 }
-  const round = roundMap[jornada]
-  if (!round) return notFound()
+  const isTotal = jornada === "total"
+  const jornadaInfo = isTotal ? null : (isValidJornadaSlug(jornada) ? JORNADA_INFO[jornada] : null)
+  if (!isTotal && !jornadaInfo) return notFound()
 
-  const jornadaInfo = JORNADA_INFO[jornada as "j1" | "j2" | "j3"]
+  const pageLabel = isTotal ? "Total acumulado" : jornadaInfo!.label
+  const heroTitle = isTotal ? "Total · Wrap" : `${jornadaInfo!.label} · Wrap`
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  // Step 1: compute jornada match IDs
-  const { data: allGroupMatches } = await supabase
-    .from("matches")
-    .select("id, match_date, group_name")
-    .eq("stage", "group")
+  // Resolve match IDs based on slug type
+  let ids: string[] = []
+  let totalMatchCount: number | null = null
 
-  const jMatchIds = getGroupRoundMatchIds(allGroupMatches ?? [], round)
-  if (jMatchIds.size === 0) return notFound()
-  const ids = Array.from(jMatchIds)
+  if (isTotal) {
+    const { data: allFinished } = await supabase
+      .from("matches")
+      .select("id")
+      .eq("status", "finished")
+    ids = (allFinished ?? []).map((m) => m.id)
+    totalMatchCount = ids.length
+  } else if (jornadaInfo!.isGroup) {
+    const round = ({ j1: 1, j2: 2, j3: 3 } as Record<string, 1 | 2 | 3>)[jornada]
+    const { data: allGroupMatches } = await supabase
+      .from("matches")
+      .select("id, match_date, group_name")
+      .eq("stage", "group")
+    const jMatchIds = getGroupRoundMatchIds(allGroupMatches ?? [], round)
+    ids = Array.from(jMatchIds)
+    totalMatchCount = ids.length
+  } else {
+    const { data: stageMatches } = await supabase
+      .from("matches")
+      .select("id")
+      .eq("stage", jornadaInfo!.stage!)
+    const allIds = (stageMatches ?? []).map((m) => m.id)
+    totalMatchCount = allIds.length
+    // Only use finished ones (fetched below)
+    ids = allIds
+  }
 
-  // Step 2: matches + predictions + events + AI predictions in parallel
+  if (ids.length === 0) {
+    return (
+      <div className="space-y-10">
+        <Breadcrumb crumbs={[{ label: "Inicio", href: "/dashboard" }, { label: `${pageLabel} · Wrap` }]} />
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-yellow-500/80 mb-1">⚡ Resumen</p>
+            <h1 className="text-3xl font-bold">{heroTitle}</h1>
+          </div>
+          <WrapSelector current={jornada} />
+        </div>
+        <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-10 text-center text-(--color-muted)">
+          <p className="text-lg font-semibold mb-1">Sin datos todavía</p>
+          <p className="text-sm">No hay partidos terminados para esta fase.</p>
+        </div>
+        <div className="pt-2 pb-8">
+          <Link href="/dashboard" className="text-sm text-(--color-muted) hover:text-white transition-colors">
+            ← Volver al inicio
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Fetch matches + predictions + events + AI in parallel
   const aiUserIds = AI_USERS.map((a) => a.id)
 
   const [matchesRes, predsRes, eventsRes, aiPredsRes, aiProfilesRes] = await Promise.all([
@@ -151,7 +198,6 @@ export default async function WrapPage({ params }: Props) {
   const finishedMatches = matchesRes.data ?? []
   const finishedIds = new Set(finishedMatches.map((m) => m.id))
 
-  // Step 3: user profiles
   const rawPreds = (predsRes.data ?? []).filter((p) => finishedIds.has(p.match_id))
   const seenKey = new Set<string>()
   const preds: WrapPred[] = []
@@ -168,7 +214,6 @@ export default async function WrapPage({ params }: Props) {
 
   const nameMap = Object.fromEntries((usersData ?? []).map((u) => [u.id, { name: u.name as string, avatarUrl: u.avatar_url as string | null }]))
 
-  // Build event maps
   const events = eventsRes.data ?? []
   const firstGoalMap: Record<string, string> = {}
   const hasPenaltyMap: Record<string, boolean> = {}
@@ -292,19 +337,16 @@ export default async function WrapPage({ params }: Props) {
       topScoreCount: topEntry?.[1] ?? 0,
     }
   }).sort((a, b) => {
-    // Sort by match order (using team names as stable order)
     const nameA = a.match.home_team?.fifa_code ?? ""
     const nameB = b.match.home_team?.fifa_code ?? ""
     return nameA.localeCompare(nameB)
   })
 
-  // Global curiosidades
   const hardestMatch = [...matchStats].filter((ms) => ms.predCount > 0)
     .sort((a, b) => (a.exactCount / a.predCount) - (b.exactCount / b.predCount))[0]
   const easiestMatch = [...matchStats].filter((ms) => ms.predCount > 0)
     .sort((a, b) => (b.exactCount / b.predCount) - (a.exactCount / a.predCount))[0]
 
-  // Most correctly predicted first goal scorer
   const correctScorerCounts: Record<string, number> = {}
   for (const h of goalScorerHits) {
     const key = h.scorerName.trim()
@@ -312,11 +354,9 @@ export default async function WrapPage({ params }: Props) {
   }
   const topCorrectScorer = Object.entries(correctScorerCounts).sort((a, b) => b[1] - a[1])[0]
 
-  // Normalize "2-0" and "0-2" to the same key (higher number first)
   const normScore = (a: number, b: number) =>
     a >= b ? `${a}-${b}` : `${b}-${a}`
 
-  // Global score curiosidades
   const globalScoreCounts: Record<string, number> = {}
   const globalExactCounts: Record<string, number> = {}
   for (const p of preds) {
@@ -333,29 +373,30 @@ export default async function WrapPage({ params }: Props) {
     .filter(([key]) => !globalExactCounts[key])
     .sort((a, b) => b[1] - a[1])[0]
 
-  // Summary numbers
-  const totalPreds  = preds.length
+  const totalPreds   = preds.length
   const totalPlayers = allUserIds.length
   const playersWithExact = userStats.filter((u) => u.exactScores > 0).length
-  const maxExact = byExact[0]?.exactScores ?? 1
 
   return (
     <div className="space-y-10">
-      <Breadcrumb crumbs={[{ label: "Inicio", href: "/dashboard" }, { label: `${jornadaInfo.label} · Wrap` }]} />
+      <Breadcrumb crumbs={[{ label: "Inicio", href: "/dashboard" }, { label: `${pageLabel} · Wrap` }]} />
 
       {/* ── Hero ── */}
       <section className="space-y-4">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-yellow-500/80 mb-1">⚡ Resumen</p>
-          <h1 className="text-3xl font-bold">{jornadaInfo.label} · Wrap</h1>
-          <p className="text-(--color-muted) text-sm mt-1">
-            {finishedMatches.length} de {ids.length} partido{ids.length !== 1 ? "s" : ""} completado{finishedMatches.length !== 1 ? "s" : ""}
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-yellow-500/80 mb-1">⚡ Resumen</p>
+            <h1 className="text-3xl font-bold">{heroTitle}</h1>
+            <p className="text-(--color-muted) text-sm mt-1">
+              {finishedMatches.length} de {totalMatchCount ?? ids.length} partido{(totalMatchCount ?? ids.length) !== 1 ? "s" : ""} completado{finishedMatches.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <WrapSelector current={jornada} />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Partidos", value: finishedMatches.length, sub: `de ${ids.length}` },
+            { label: "Partidos", value: finishedMatches.length, sub: totalMatchCount != null ? `de ${totalMatchCount}` : undefined },
             { label: "Predicciones", value: totalPreds },
             { label: "Jugadores", value: totalPlayers },
             { label: "Con exacto", value: playersWithExact, sub: `de ${totalPlayers}` },
@@ -534,13 +575,12 @@ export default async function WrapPage({ params }: Props) {
         )}
       </section>
 
-      {/* ── Tabla J1 ── */}
+      {/* ── Tabla ── */}
       <section>
         <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <span>🏆</span> Tabla {jornadaInfo.label}
+          <span>🏆</span> Tabla {pageLabel}
         </h2>
         <div className="bg-(--color-surface) border border-(--color-border) rounded-xl overflow-hidden">
-          {/* Header */}
           <div className="grid grid-cols-[2rem_1fr_3.5rem_3.5rem_3.5rem] gap-2 px-4 py-2 border-b border-(--color-border) text-[10px] font-semibold uppercase tracking-widest text-(--color-muted)">
             <span>#</span>
             <span>Jugador</span>
@@ -551,7 +591,7 @@ export default async function WrapPage({ params }: Props) {
           {byPoints.map((u, i) => (
             <div
               key={u.userId}
-              className={`grid grid-cols-[2rem_1fr_3.5rem_3.5rem_3.5rem] gap-2 items-center px-4 py-2.5 border-b border-(--color-border)/40 last:border-0 ${u.userId === user.id ? "bg-(--color-accent)/5" : ""}`}
+              className={`grid grid-cols-[2rem_1fr_3.5rem_3.5rem_3.5rem] gap-2 items-center px-4 py-2.5 border-b border-(--color-border)/40 last:border-0 ${u.userId === user.id ? "bg-accent/5" : ""}`}
             >
               <span className={`text-xs font-bold tabular-nums ${i === 0 ? "text-yellow-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-(--color-muted)"}`}>
                 {i + 1}
@@ -576,7 +616,7 @@ export default async function WrapPage({ params }: Props) {
           <h2 className="font-bold text-lg mb-1 flex items-center gap-2">
             <span>🤖</span> Battle de IAs
           </h2>
-          <p className="text-(--color-muted) text-xs mb-4">¿Cuál modelo predijo mejor esta jornada?</p>
+          <p className="text-(--color-muted) text-xs mb-4">¿Cuál modelo predijo mejor{isTotal ? " el torneo" : " esta fase"}?</p>
           <div className="grid grid-cols-3 gap-3">
             {aiStats.map((ai) => {
               const isWinner = ai.id === aiWinner?.id && ai.predCount > 0
@@ -590,14 +630,10 @@ export default async function WrapPage({ params }: Props) {
                       Mejor IA ✦
                     </span>
                   )}
-
-                  {/* Avatar + name */}
                   <div className="flex items-center gap-2 mt-1">
                     <Avatar name={ai.name} avatarUrl={ai.avatarUrl} size={28} />
                     <span className={`text-sm font-bold leading-tight ${ai.color}`}>{ai.label}</span>
                   </div>
-
-                  {/* Stats */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] text-(--color-muted)">Exactos</span>
@@ -631,7 +667,6 @@ export default async function WrapPage({ params }: Props) {
               const exactPct = ms.predCount > 0 ? Math.round((ms.exactCount / ms.predCount) * 100) : 0
               return (
                 <div key={m.id} className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4 space-y-3">
-                  {/* Match result */}
                   <div className="flex items-center gap-2">
                     {m.home_team?.flag_url
                       ? <Image src={m.home_team.flag_url} alt={m.home_team.name} width={22} height={15} className="rounded-sm object-cover shrink-0" />
@@ -643,8 +678,6 @@ export default async function WrapPage({ params }: Props) {
                       ? <Image src={m.away_team.flag_url} alt={m.away_team.name} width={22} height={15} className="rounded-sm object-cover shrink-0" />
                       : <div className="w-5.5 h-3.75 bg-white/10 rounded-sm shrink-0" />}
                   </div>
-
-                  {/* Stats row */}
                   <div className="flex items-center justify-between text-xs">
                     <div>
                       <span className="text-(--color-muted)">Exactos </span>
@@ -653,8 +686,6 @@ export default async function WrapPage({ params }: Props) {
                       <span className="text-(--color-muted) ml-1">({exactPct}%)</span>
                     </div>
                   </div>
-
-                  {/* Most popular pick */}
                   {ms.predCount > 0 && (
                     <div className="text-xs text-(--color-muted)">
                       + popular:{" "}
@@ -669,7 +700,6 @@ export default async function WrapPage({ params }: Props) {
         </section>
       )}
 
-      {/* Back link */}
       <div className="pt-2 pb-8">
         <Link href="/dashboard" className="text-sm text-(--color-muted) hover:text-white transition-colors">
           ← Volver al inicio
