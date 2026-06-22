@@ -127,7 +127,7 @@ export default async function WrapPage({ params }: Props) {
     const { data: stageMatches } = await supabase
       .from("matches")
       .select("id")
-      .eq("stage", jornadaInfo!.stage!)
+      .eq("stage", jornadaInfo!.stage!) as unknown as { data: { id: string }[] | null }
     const allIds = (stageMatches ?? []).map((m) => m.id)
     totalMatchCount = allIds.length
     // Only use finished ones (fetched below)
