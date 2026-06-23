@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 
@@ -90,6 +90,8 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
   const [open, setOpen] = useState(false)
   const meId = match.leagueFullPreds?.find(p => p.isMe)?.userId ?? null
   const [openBreakdownId, setOpenBreakdownId] = useState<string | null>(meId)
+  const [clientDate, setClientDate] = useState<string | null>(null)
+  useEffect(() => { setClientDate(formatDate(match.match_date)) }, [match.match_date])
 
   const pred = match.prediction
   const isLive = match.status === "live"
@@ -153,7 +155,7 @@ export default function UpcomingMatchCard({ match }: { match: MatchCardData }) {
             </span>
           </div>
 
-          <span className="text-[10px] text-(--color-muted)">{formatDate(match.match_date)}</span>
+          <span className="text-[10px] text-(--color-muted)">{clientDate ?? ""}</span>
 
           {pred ? (
             <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
