@@ -251,7 +251,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
           <TeamDisplay
             team={match.home_team}
             side="home"
-            prevResult={previousResults?.find(
+            prevResults={previousResults?.filter(
               (r) => r.homeTeamId === match.home_team?.id || r.awayTeamId === match.home_team?.id
             )}
           />
@@ -259,7 +259,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
           <TeamDisplay
             team={match.away_team}
             side="away"
-            prevResult={previousResults?.find(
+            prevResults={previousResults?.filter(
               (r) => r.homeTeamId === match.away_team?.id || r.awayTeamId === match.away_team?.id
             )}
           />
@@ -452,12 +452,7 @@ export default function MatchdayForm({ slug, label, matches, predictionsByMatchI
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-function TeamDisplay({ team, prevResult }: { team: Team | null; side: "home" | "away"; prevResult?: PreviousResult }) {
-  const isHome = prevResult && team?.id === prevResult.homeTeamId
-  const oppCode = prevResult ? (isHome ? prevResult.awayCode : prevResult.homeCode) : null
-  const myScore = prevResult ? (isHome ? prevResult.homeScore : prevResult.awayScore) : null
-  const oppScore = prevResult ? (isHome ? prevResult.awayScore : prevResult.homeScore) : null
-
+function TeamDisplay({ team, prevResults }: { team: Team | null; side: "home" | "away"; prevResults?: PreviousResult[] }) {
   return (
     <div className="flex flex-col items-center gap-1 w-24">
       {team?.flag_url ? (
@@ -466,7 +461,11 @@ function TeamDisplay({ team, prevResult }: { team: Team | null; side: "home" | "
         <div className="w-10 h-7 bg-white/10 rounded-sm" />
       )}
       <span className="text-sm font-semibold text-center leading-tight">{team?.name ?? "—"}</span>
-      {prevResult && oppCode !== null && myScore !== null && oppScore !== null && (() => {
+      {prevResults && prevResults.map((prevResult) => {
+        const isHome = team?.id === prevResult.homeTeamId
+        const oppCode = isHome ? prevResult.awayCode : prevResult.homeCode
+        const myScore = isHome ? prevResult.homeScore : prevResult.awayScore
+        const oppScore = isHome ? prevResult.awayScore : prevResult.homeScore
         const won = myScore > oppScore
         const draw = myScore === oppScore
         const cls = won
@@ -475,11 +474,11 @@ function TeamDisplay({ team, prevResult }: { team: Team | null; side: "home" | "
             ? "bg-white/8 text-white/50 border border-white/12"
             : "bg-red-500/15 text-red-400 border border-red-500/30"
         return (
-          <span className={`text-[10px] tabular-nums rounded-full px-2 py-0.5 ${cls}`}>
+          <span key={prevResult.id} className={`text-[10px] tabular-nums rounded-full px-2 py-0.5 ${cls}`}>
             vs. {oppCode} {myScore}–{oppScore}
           </span>
         )
-      })()}
+      })}
     </div>
   )
 }
