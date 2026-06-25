@@ -42,7 +42,8 @@ export interface MemberBracketPoints {
   userId: string
   name: string
   avatarUrl: string | null
-  totalPoints: number
+  totalPoints: number   // live total including partial groups
+  storedPoints: number  // official total from bracket_points (6/6 groups only)
   breakdown: {
     groups: number
     r32: number
@@ -239,6 +240,7 @@ interface Props {
   memberPoints: MemberBracketPoints[]
   currentUserId: string
   pts: PtsConfig
+  finishedGroups: Set<string>
 }
 
 const EMPTY_SLOT: ActualMatchSlot = {
@@ -282,10 +284,12 @@ function MemberDetail({
   detail,
   teamById,
   pts,
+  finishedGroups,
 }: {
   detail: MemberBracketPoints["detail"]
   teamById: Record<string, TeamInfo>
   pts: PtsConfig
+  finishedGroups: Set<string>
 }) {
   const t = (id: string | null | undefined) => id ? (teamById[id] ?? null) : null
 
@@ -305,6 +309,7 @@ function MemberDetail({
         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
           {detail.groups.map(g => {
             const hasResult = !!g.actualFirst
+            const isLocked  = finishedGroups.has(g.group)
             const first  = t(g.predictedFirst)
             const second = t(g.predictedSecond)
             const aFirst  = t(g.actualFirst)
@@ -314,7 +319,10 @@ function MemberDetail({
 
             return (
               <div key={g.group} className="flex items-start gap-2 py-0.5">
-                <span className="text-[9px] font-bold text-(--color-muted) w-3 shrink-0 mt-0.5">{g.group}</span>
+                <div className="flex items-center gap-0.5 w-5 shrink-0 mt-0.5">
+                  <span className="text-[9px] font-bold text-(--color-muted)">{g.group}</span>
+                  {isLocked && <span className="text-[8px] text-emerald-400" title="Grupo terminado — pts sumados">✓</span>}
+                </div>
                 <div className="flex flex-col gap-0.5 min-w-0">
                   {/* 1° */}
                   <div className="flex items-center gap-1">
@@ -384,7 +392,7 @@ function MemberDetail({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function LiveBracketViewer({ actualSlots, teams, memberPoints, currentUserId, pts }: Props) {
+export function LiveBracketViewer({ actualSlots, teams, memberPoints, currentUserId, pts, finishedGroups }: Props) {
   const [mode, setMode] = useState<"lista" | "diagrama">("lista")
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
 
@@ -405,7 +413,7 @@ export function LiveBracketViewer({ actualSlots, teams, memberPoints, currentUse
   const finalist1 = t(actualSlots.final?.homeTeamId)
   const finalist2 = t(actualSlots.final?.awayTeamId)
 
-  const sortedMembers = [...memberPoints].sort((a, b) => b.totalPoints - a.totalPoints)
+  const sortedMembers = [...memberPoints].sort((a, b) => b.storedPoints - a.storedPoints || b.totalPoints - a.totalPoints)
 
   return (
     <div className="space-y-4">
@@ -466,15 +474,22 @@ export function LiveBracketViewer({ actualSlots, teams, memberPoints, currentUse
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-end gap-1">
-                    <span className={`text-xs tabular-nums font-semibold ${isMe ? "text-(--color-accent)" : "text-white"}`}>
-                      {member.totalPoints}
-                    </span>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <div className="flex flex-col items-end leading-tight">
+                      <span className={`text-xs tabular-nums font-semibold ${isMe ? "text-(--color-accent)" : "text-white"}`}>
+                        {member.storedPoints}
+                      </span>
+                      {member.totalPoints > member.storedPoints && (
+                        <span className="text-[9px] tabular-nums text-amber-400 font-medium">
+                          +{member.totalPoints - member.storedPoints}
+                        </span>
+                      )}
+                    </div>
                     <span className={`text-[9px] text-(--color-muted) transition-transform ${isExpanded ? "rotate-180" : ""}`}>▾</span>
                   </div>
                 </button>
                 {isExpanded && (
-                  <MemberDetail detail={member.detail} teamById={teamById} pts={pts} />
+                  <MemberDetail detail={member.detail} teamById={teamById} pts={pts} finishedGroups={finishedGroups} />
                 )}
               </div>
             )

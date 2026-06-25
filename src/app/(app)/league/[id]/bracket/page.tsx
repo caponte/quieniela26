@@ -378,7 +378,7 @@ export default async function LiveBracketPage({ params }: Props) {
 
   const memberIds = (rawMembers ?? []).map(m => m.user_id)
 
-  const [matchesRes, groupMatchesRes, eventsRes, predsRes, teamsRes, usersRes, ptsCfgRes] = await Promise.all([
+  const [matchesRes, groupMatchesRes, eventsRes, predsRes, teamsRes, usersRes, ptsCfgRes, storedPtsRes] = await Promise.all([
     supabase
       .from("matches")
       .select("id, match_number, stage, home_team_id, away_team_id, home_score, away_score, status")
@@ -420,6 +420,14 @@ export default async function LiveBracketPage({ params }: Props) {
       .from("points_config")
       .select("category, points")
       .like("category", "bracket_%") as unknown as Promise<{ data: { category: string; points: number }[] | null }>,
+
+    memberIds.length > 0
+      ? (supabase
+          .from("bracket_points")
+          .select("user_id, total_points")
+          .in("user_id", memberIds)
+          .order("league_id", { nullsFirst: true }) as unknown as Promise<{ data: { user_id: string; total_points: number }[] | null }>)
+      : Promise.resolve({ data: [] as { user_id: string; total_points: number }[] }),
   ])
 
   const knockoutMatches = matchesRes.data     ?? []
@@ -429,6 +437,21 @@ export default async function LiveBracketPage({ params }: Props) {
   const teams           = teamsRes.data         ?? []
   const usersData       = usersRes.data         ?? []
   const ptsCfgData      = ptsCfgRes.data        ?? []
+
+  // Official stored pts (6/6 groups only) — first row per user, prefer NULL league_id
+  const storedPtsMap: Record<string, number> = {}
+  for (const r of storedPtsRes.data ?? []) {
+    if (!(r.user_id in storedPtsMap)) storedPtsMap[r.user_id] = r.total_points
+  }
+
+  // Groups with all 6 matches finished — pts from these are already in bracket_points
+  const matchCountPerGroup: Record<string, number> = {}
+  for (const m of groupMatches) {
+    if (m.group_name) matchCountPerGroup[m.group_name] = (matchCountPerGroup[m.group_name] ?? 0) + 1
+  }
+  const finishedGroups = new Set(
+    Object.entries(matchCountPerGroup).filter(([, c]) => c >= 6).map(([g]) => g)
+  )
 
   const ptsCfgMap = Object.fromEntries(ptsCfgData.map(r => [r.category, r.points]))
   const pts = {
@@ -472,12 +495,14 @@ export default async function LiveBracketPage({ params }: Props) {
     const detail = pred
       ? buildDetail(pred, actualSlots, groupStandings, top8Thirds)
       : emptyDetail
-    const totalPoints = Object.values(breakdown).reduce((a, b) => a + b, 0)
+    const totalPoints  = Object.values(breakdown).reduce((a, b) => a + b, 0)
+    const storedPoints = storedPtsMap[uid] ?? 0
     return {
       userId: uid,
       name: u?.name ?? "—",
       avatarUrl: u?.avatar_url ?? null,
       totalPoints,
+      storedPoints,
       breakdown,
       detail,
     }
@@ -500,6 +525,7 @@ export default async function LiveBracketPage({ params }: Props) {
         memberPoints={memberPoints}
         currentUserId={user.id}
         pts={pts}
+        finishedGroups={finishedGroups}
       />
     </div>
   )
