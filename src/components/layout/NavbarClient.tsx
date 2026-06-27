@@ -15,8 +15,9 @@ export function NavbarClient({ profile }: Props) {
   const navLinks = (
     <>
       <Link href="/dashboard"      onClick={close} className="px-3 py-2.5 rounded-lg text-sm text-(--color-muted) hover:text-(--color-foreground) hover:bg-(--color-surface-2) transition">Inicio</Link>
-      <Link href="/predict/bracket" onClick={close} className="px-3 py-2.5 rounded-lg text-sm text-(--color-muted) hover:text-(--color-foreground) hover:bg-(--color-surface-2) transition">Bracket</Link>
-      <Link href="/predict/match"   onClick={close} className="px-3 py-2.5 rounded-lg text-sm text-(--color-muted) hover:text-(--color-foreground) hover:bg-(--color-surface-2) transition">Jornada</Link>
+      <Link href="/predict/bracket"  onClick={close} className="px-3 py-2.5 rounded-lg text-sm text-(--color-muted) hover:text-(--color-foreground) hover:bg-(--color-surface-2) transition">Bracket</Link>
+      <Link href="/predict/knockout" onClick={close} className="px-3 py-2.5 rounded-lg text-sm text-(--color-muted) hover:text-(--color-foreground) hover:bg-(--color-surface-2) transition">Bracket Elim.</Link>
+      <Link href="/predict/match"    onClick={close} className="px-3 py-2.5 rounded-lg text-sm text-(--color-muted) hover:text-(--color-foreground) hover:bg-(--color-surface-2) transition">Jornada</Link>
       <Link href="/league"          onClick={close} className="px-3 py-2.5 rounded-lg text-sm text-(--color-muted) hover:text-(--color-foreground) hover:bg-(--color-surface-2) transition">Ligas</Link>
       {profile?.role === "admin" && (
         <Link href="/admin" onClick={close} className="px-3 py-2.5 rounded-lg text-sm text-yellow-400 hover:bg-(--color-surface-2) transition">Admin</Link>

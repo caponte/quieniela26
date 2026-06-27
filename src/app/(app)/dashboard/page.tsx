@@ -418,7 +418,7 @@ export default async function DashboardPage() {
       )}
 
       {/* Quick actions */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link href="/predict/bracket" className="group relative overflow-hidden rounded-2xl h-44 flex flex-col justify-end">
           <Image
             src={bracketImg}
@@ -454,6 +454,28 @@ export default async function DashboardPage() {
           </div>
           <div className="absolute top-3 right-4 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1.5 text-xs font-medium text-white/80">
             <span>📅</span> CALENDAR
+          </div>
+        </Link>
+
+        <Link href="/predict/knockout" className="group relative overflow-hidden rounded-2xl h-44 flex flex-col justify-end">
+          <Image
+            src={bracketImg}
+            alt="Bracket KO"
+            fill
+            className="object-cover object-center transition duration-300 group-hover:scale-105 brightness-75"
+            sizes="(max-width: 640px) 100vw, 50vw"
+          />
+          <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent" />
+          <div className="relative px-5 pb-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-yellow-400 mb-0.5">Bracket KO</p>
+            <h2 className="font-bold text-lg text-white leading-tight">Con los 32 clasificados reales</h2>
+            <p className="text-white/60 text-xs mt-1 leading-snug">Disponible al cierre de grupos.</p>
+          </div>
+          <div className="absolute top-3 right-4 flex items-center gap-2">
+            <span className="bg-yellow-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-0.5">Muy pronto</span>
+            <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1.5 text-xs font-medium text-white/80">
+              <span>🏆</span> KO
+            </div>
           </div>
         </Link>
 
