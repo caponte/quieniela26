@@ -3,12 +3,6 @@
 import { useEffect, useState } from "react"
 import { BRACKET_LOCK_TIME } from "@/lib/utils/bracket"
 
-const LOCK_MS = BRACKET_LOCK_TIME.getTime()
-
-function getRemaining() {
-  return Math.max(0, LOCK_MS - Date.now())
-}
-
 function formatParts(ms: number) {
   const s = Math.floor(ms / 1000)
   return {
@@ -19,18 +13,26 @@ function formatParts(ms: number) {
   }
 }
 
-export function BracketCountdown({ variant = "banner" }: { variant?: "banner" | "compact" }) {
+export function BracketCountdown({
+  variant = "banner",
+  lockTime,
+}: {
+  variant?: "banner" | "compact"
+  lockTime?: Date | null
+}) {
+  const lockMs = (lockTime ?? BRACKET_LOCK_TIME).getTime()
   const [remaining, setRemaining] = useState<number | null>(null)
 
   useEffect(() => {
-    setRemaining(getRemaining())
+    const get = () => Math.max(0, lockMs - Date.now())
+    setRemaining(get())
     const id = setInterval(() => {
-      const r = getRemaining()
+      const r = get()
       setRemaining(r)
       if (r === 0) clearInterval(id)
     }, 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [lockMs])
 
   if (remaining === null || remaining === 0) return null
 

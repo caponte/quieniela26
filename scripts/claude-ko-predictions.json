@@ -1,0 +1,182 @@
+{
+  "meta": {
+    "user_email": "claude@quiniela26.internal",
+    "user_name": "Claude IA 🤖"
+  },
+  "ko_predictions": {
+    "r32": [
+      {
+        "match_id": "19c6831c-ed2e-4afc-a6bf-6e2c75cb7666",
+        "home_goals": 3,
+        "away_goals": 0,
+        "winner": "GER",
+        "first_team_to_score": "GER",
+        "has_penalty": false,
+        "first_goal_scorer": "Kai Havertz"
+      },
+      {
+        "match_id": "9ca7d4a2-293a-41ed-b0c2-f7f44737fa0a",
+        "home_goals": 2,
+        "away_goals": 1,
+        "winner": "FRA",
+        "first_team_to_score": "FRA",
+        "has_penalty": false,
+        "first_goal_scorer": "Kylian Mbappé"
+      },
+      {
+        "match_id": "fe22d9b4-77fc-4f69-bf0f-a0d0ea9226f3",
+        "home_goals": 1,
+        "away_goals": 2,
+        "winner": "CAN",
+        "first_team_to_score": "RSA",
+        "has_penalty": false,
+        "first_goal_scorer": "Oswin Appollis"
+      },
+      {
+        "match_id": "474a26c3-3f21-42d9-bd9a-0e241e4bd1cc",
+        "home_goals": 2,
+        "away_goals": 1,
+        "winner": "NED",
+        "first_team_to_score": "NED",
+        "has_penalty": false,
+        "first_goal_scorer": "Memphis Depay"
+      },
+      {
+        "match_id": "4abb412d-0024-4ba3-b773-6a5dc40ba952",
+        "home_goals": 2,
+        "away_goals": 1,
+        "winner": "POR",
+        "first_team_to_score": "POR",
+        "has_penalty": false,
+        "first_goal_scorer": "Cristiano Ronaldo"
+      },
+      {
+        "match_id": "63ea5373-63cd-47f8-a832-e01cdcd53660",
+        "home_goals": 2,
+        "away_goals": 0,
+        "winner": "ESP",
+        "first_team_to_score": "ESP",
+        "has_penalty": false,
+        "first_goal_scorer": "Lamine Yamal"
+      },
+      {
+        "match_id": "00b49200-615e-430d-866d-ccd8c5e1c5d3",
+        "home_goals": 3,
+        "away_goals": 0,
+        "winner": "USA",
+        "first_team_to_score": "USA",
+        "has_penalty": false,
+        "first_goal_scorer": "Folarin Balogun"
+      },
+      {
+        "match_id": "9a2dfc3e-102c-4e26-9b51-d267c607f637",
+        "home_goals": 1,
+        "away_goals": 0,
+        "winner": "BEL",
+        "first_team_to_score": "BEL",
+        "has_penalty": false,
+        "first_goal_scorer": "Romelu Lukaku"
+      },
+      {
+        "match_id": "bb83335b-ae2d-4487-b0cd-f287439d3b8a",
+        "home_goals": 2,
+        "away_goals": 1,
+        "winner": "BRA",
+        "first_team_to_score": "JPN",
+        "has_penalty": false,
+        "first_goal_scorer": "Junya Ito"
+      },
+      {
+        "match_id": "294c2498-2471-4db0-a362-cea5cc072995",
+        "home_goals": 0,
+        "away_goals": 2,
+        "winner": "NOR",
+        "first_team_to_score": "NOR",
+        "has_penalty": false,
+        "first_goal_scorer": "Erling Haaland"
+      },
+      {
+        "match_id": "489c0f9e-4204-4587-8b7c-ef131a9c986b",
+        "home_goals": 2,
+        "away_goals": 1,
+        "winner": "MEX",
+        "first_team_to_score": "MEX",
+        "has_penalty": false,
+        "first_goal_scorer": "Santiago Giménez"
+      },
+      {
+        "match_id": "dd354235-2d72-405d-b7d5-774dc6a3950e",
+        "home_goals": 3,
+        "away_goals": 0,
+        "winner": "ENG",
+        "first_team_to_score": "ENG",
+        "has_penalty": false,
+        "first_goal_scorer": "Harry Kane"
+      },
+      {
+        "match_id": "72a90f45-ec25-4e6c-9eea-b1ec98003d0d",
+        "home_goals": 4,
+        "away_goals": 0,
+        "winner": "ARG",
+        "first_team_to_score": "ARG",
+        "has_penalty": false,
+        "first_goal_scorer": "Lionel Messi"
+      },
+      {
+        "match_id": "ca2c0c5d-f0c1-43ea-a28e-0e4d6c66ebf4",
+        "home_goals": 2,
+        "away_goals": 1,
+        "winner": "AUS",
+        "first_team_to_score": "AUS",
+        "has_penalty": false,
+        "first_goal_scorer": "Nestory Irankunda"
+      },
+      {
+        "match_id": "e7bed273-df10-48c7-83a4-534a15e7d325",
+        "home_goals": 1,
+        "away_goals": 0,
+        "winner": "SUI",
+        "first_team_to_score": "SUI",
+        "has_penalty": false,
+        "first_goal_scorer": "Breel Embolo"
+      },
+      {
+        "match_id": "eb52baec-6a7e-41a2-99a0-2d7c94fa70b0",
+        "home_goals": 2,
+        "away_goals": 0,
+        "winner": "COL",
+        "first_team_to_score": "COL",
+        "has_penalty": false,
+        "first_goal_scorer": "Luis Díaz"
+      }
+    ],
+    "r16": [
+      { "match_label": "M89", "winner": "FRA", "has_penalty": false },
+      { "match_label": "M90", "winner": "NED", "has_penalty": false },
+      { "match_label": "M93", "winner": "ESP", "has_penalty": false },
+      { "match_label": "M94", "winner": "USA", "has_penalty": false },
+      { "match_label": "M91", "winner": "BRA", "has_penalty": true  },
+      { "match_label": "M92", "winner": "ENG", "has_penalty": false },
+      { "match_label": "M95", "winner": "ARG", "has_penalty": false },
+      { "match_label": "M96", "winner": "COL", "has_penalty": false }
+    ],
+    "qf": [
+      { "match_label": "M97",  "winner": "FRA", "has_penalty": false },
+      { "match_label": "M98",  "winner": "ESP", "has_penalty": false },
+      { "match_label": "M99",  "winner": "BRA", "has_penalty": true  },
+      { "match_label": "M100", "winner": "ARG", "has_penalty": false }
+    ],
+    "sf": [
+      { "match_label": "M101", "winner": "ESP", "has_penalty": false },
+      { "match_label": "M102", "winner": "ARG", "has_penalty": false }
+    ],
+    "third_place": {
+      "match_label": "M103",
+      "winner": "FRA"
+    },
+    "final": {
+      "match_label": "M104",
+      "winner": "ARG"
+    }
+  }
+}

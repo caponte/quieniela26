@@ -13,7 +13,9 @@
     "map-players": "tsx scripts/map-fifa-players.ts",
     "map-all-players": "tsx scripts/map-all-players.ts",
     "gen-prediction-data": "tsx scripts/generate-prediction-data.ts",
-    "seed-knockout": "tsx scripts/seed-knockout.ts"
+    "gen-ko-data": "tsx scripts/generate-ko-prediction-data.ts",
+    "seed-knockout": "tsx scripts/seed-knockout.ts",
+    "insert-ko-preds": "tsx scripts/insert-ko-predictions.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

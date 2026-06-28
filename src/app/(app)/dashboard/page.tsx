@@ -71,7 +71,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Step 1: core data in parallel
-  const [profileResult, matchesResult, liveMatchesResult, leaguesResult, groupMatchesResult, finishedMatchesResult] = await Promise.all([
+  const [profileResult, matchesResult, liveMatchesResult, leaguesResult, groupMatchesResult, finishedMatchesResult, firstR32Result] = await Promise.all([
     supabase.from("users").select("name").eq("id", user!.id).single(),
 
     supabase
@@ -116,6 +116,13 @@ export default async function DashboardPage() {
       .eq("status", "finished")
       .order("match_date", { ascending: false })
       .limit(12) as unknown as Promise<{ data: MatchRow[] | null }>,
+
+    supabase
+      .from("matches")
+      .select("match_date")
+      .eq("stage", "round_of_32")
+      .order("match_date", { ascending: true })
+      .limit(1) as unknown as Promise<{ data: { match_date: string }[] | null }>,
   ]);
 
   const profile = profileResult.data as { name: string } | null;
@@ -283,7 +290,7 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: [] as PtsRow[] }),
 
     firstLeagueMemberIds.length
-      ? supabase.from("leaderboard_bracket").select("user_id, total_points").in("user_id", firstLeagueMemberIds) as unknown as Promise<{ data: PtsRow[] | null }>
+      ? supabase.from("leaderboard_bracket").select("user_id, total_points").in("user_id", firstLeagueMemberIds).order("league_id", { ascending: true, nullsFirst: true }) as unknown as Promise<{ data: PtsRow[] | null }>
       : Promise.resolve({ data: [] as PtsRow[] }),
 
     firstLeagueMemberIds.length && allPredMatchIds.length
@@ -299,7 +306,7 @@ export default async function DashboardPage() {
 
   const userMap = Object.fromEntries((usersRes.data ?? []).map((u) => [u.id, u]));
   const jornadaMap = (jornadaRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {});
-  const bracketMap = (bracketRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {});
+  const bracketMap = (bracketRes.data ?? []).reduce<Record<string, number>>((acc, r) => { if (!(r.user_id in acc)) acc[r.user_id] = r.total_points; return acc }, {});
 
   // League predictors per match (deduplicated — NULL unique constraint doesn't hold in Postgres)
   const leaguePredsPerMatch: Record<string, { name: string; avatarUrl: string | null }[]> = {};
@@ -386,6 +393,9 @@ export default async function DashboardPage() {
   const leaderboardByJornada = [...leaderboardBase].sort((a, b) => b.jornadaPts - a.jornadaPts || b.totalPts   - a.totalPts).slice(0, 5);
   const leaderboardByBracket = [...leaderboardBase].sort((a, b) => b.bracketPts - a.bracketPts || b.totalPts   - a.totalPts).slice(0, 5);
   const showBracketCountdown = new Date() < BRACKET_LOCK_TIME
+  const firstR32Date = (firstR32Result.data ?? [])[0]?.match_date ?? null
+  const koLockTime = firstR32Date ? new Date(new Date(firstR32Date).getTime() - 10 * 60 * 1000) : null
+  const showKoCountdown = koLockTime !== null && new Date() < koLockTime
 
   return (
     <div className="space-y-6">
@@ -401,6 +411,7 @@ export default async function DashboardPage() {
 
       {/* Bracket countdown */}
       {showBracketCountdown && <BracketCountdown />}
+      {showKoCountdown && <BracketCountdown lockTime={koLockTime} />}
 
       {/* Live matches */}
       {liveMatchCards.length > 0 && (
@@ -468,11 +479,10 @@ export default async function DashboardPage() {
           <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent" />
           <div className="relative px-5 pb-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-yellow-400 mb-0.5">Bracket KO</p>
-            <h2 className="font-bold text-lg text-white leading-tight">Con los 32 clasificados reales</h2>
-            <p className="text-white/60 text-xs mt-1 leading-snug">Disponible al cierre de grupos.</p>
+            <h2 className="font-bold text-lg text-white leading-tight">Predice la fase eliminatoria</h2>
+            <p className="text-white/60 text-xs mt-1 leading-snug">Los 32 clasificados ya están definidos.</p>
           </div>
-          <div className="absolute top-3 right-4 flex items-center gap-2">
-            <span className="bg-yellow-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-0.5">Muy pronto</span>
+          <div className="absolute top-3 right-4">
             <div className="bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1.5 text-xs font-medium text-white/80">
               <span>🏆</span> KO
             </div>

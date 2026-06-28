@@ -28,6 +28,10 @@ interface BracketRow {
   total_points: number
 }
 
+interface KnockoutPredRow {
+  user_id: string
+}
+
 interface UserRow {
   id: string
   name: string
@@ -81,7 +85,7 @@ export default async function LeagueDetailPage({ params }: Props) {
   const isOwner = myMembership.role === "owner"
 
   // Parallel: leaderboard data + bracket status + upcoming matches
-  const [usersResult, jornadaResult, bracketResult, bracketPredsResult, upcomingMatchesResult] = await Promise.all([
+  const [usersResult, jornadaResult, bracketResult, bracketPredsResult, knockoutPredsResult, upcomingMatchesResult] = await Promise.all([
     supabase
       .from("users")
       .select("id, name, avatar_url")
@@ -98,7 +102,8 @@ export default async function LeagueDetailPage({ params }: Props) {
       ? (supabase
           .from("leaderboard_bracket")
           .select("user_id, total_points")
-          .in("user_id", memberIds) as unknown as Promise<{ data: BracketRow[] | null }>)
+          .in("user_id", memberIds)
+          .order("league_id", { ascending: true, nullsFirst: true }) as unknown as Promise<{ data: BracketRow[] | null }>)
       : Promise.resolve({ data: [] as BracketRow[] }),
 
     memberIds.length > 0
@@ -107,6 +112,13 @@ export default async function LeagueDetailPage({ params }: Props) {
           .select("user_id")
           .in("user_id", memberIds) as unknown as Promise<{ data: { user_id: string }[] | null }>)
       : Promise.resolve({ data: [] as { user_id: string }[] }),
+
+    memberIds.length > 0
+      ? (supabase
+          .from("knockout_predictions")
+          .select("user_id")
+          .in("user_id", memberIds) as unknown as Promise<{ data: KnockoutPredRow[] | null }>)
+      : Promise.resolve({ data: [] as KnockoutPredRow[] }),
 
     supabase
       .from("matches")
@@ -121,8 +133,9 @@ export default async function LeagueDetailPage({ params }: Props) {
 
   const userMap = Object.fromEntries((usersResult.data ?? []).map((u) => [u.id, u]))
   const jornadaMap = (jornadaResult.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {})
-  const bracketMap = (bracketResult.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {})
+  const bracketMap = (bracketResult.data ?? []).reduce<Record<string, number>>((acc, r) => { if (!(r.user_id in acc)) acc[r.user_id] = r.total_points; return acc }, {})
   const bracketPredictors = new Set((bracketPredsResult.data ?? []).map((r) => r.user_id))
+  const knockoutPredictors = new Set((knockoutPredsResult.data ?? []).map((r) => r.user_id))
   const upcomingMatches = upcomingMatchesResult.data ?? []
   const upcomingMatchIds = upcomingMatches.map((m) => m.id)
 
@@ -140,6 +153,7 @@ export default async function LeagueDetailPage({ params }: Props) {
         bracketPts: bracket,
         totalPts: jornada + bracket,
         hasBracket: bracketPredictors.has(m.user_id),
+      hasKnockout: knockoutPredictors.has(m.user_id),
       }
     })
 
@@ -166,6 +180,9 @@ export default async function LeagueDetailPage({ params }: Props) {
   const missingBracket = rows.filter((r) => !r.hasBracket)
   // Members who submitted bracket
   const hasBracketCount = rows.filter((r) => r.hasBracket).length
+  // Members missing KO bracket
+  const missingKnockout = rows.filter((r) => !r.hasKnockout)
+  const hasKnockoutCount = rows.filter((r) => r.hasKnockout).length
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -312,6 +329,36 @@ export default async function LeagueDetailPage({ params }: Props) {
           ) : (
             <div className="flex flex-wrap gap-2">
               {missingBracket.map((r) => (
+                <div key={r.userId} className="flex items-center gap-1.5 bg-white/5 rounded-lg px-2.5 py-1.5">
+                  {r.avatarUrl ? (
+                    <Image src={r.avatarUrl} alt={r.name} width={18} height={18} className="rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full bg-white/10 shrink-0 flex items-center justify-center text-[9px] font-bold">
+                      {r.name[0]?.toUpperCase() ?? "?"}
+                    </div>
+                  )}
+                  <span className="text-xs text-(--color-muted)">{r.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Bracket KO status */}
+        <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">Bracket KO</span>
+            <span className={`text-xs font-semibold tabular-nums ${
+              hasKnockoutCount === members.length ? "text-emerald-400" : "text-amber-400"
+            }`}>
+              {hasKnockoutCount}/{members.length} enviados
+            </span>
+          </div>
+          {missingKnockout.length === 0 ? (
+            <p className="text-xs text-emerald-400">Todos han enviado su bracket KO.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {missingKnockout.map((r) => (
                 <div key={r.userId} className="flex items-center gap-1.5 bg-white/5 rounded-lg px-2.5 py-1.5">
                   {r.avatarUrl ? (
                     <Image src={r.avatarUrl} alt={r.name} width={18} height={18} className="rounded-full object-cover shrink-0" />

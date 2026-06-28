@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect, useRef } from "react"
 import { saveKnockoutPrediction } from "@/lib/actions/knockout-bracket"
+import { BracketCountdown } from "@/components/BracketCountdown"
 import {
   R16_INFO, QF_INFO, SF_INFO, FINAL_INFO, THIRD_INFO,
   R32_DEFS,
@@ -216,9 +217,28 @@ export function KnockoutBracketForm({ teams, teamById, r32Matches, firstR32Date,
   const [isPending, startTransition] = useTransition()
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle")
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
 
   // Re-check lock client-side (firstR32Date can change since we hydrated)
   const clientLocked = locked || isKnockoutLocked(firstR32Date ? new Date(firstR32Date) : null)
+
+  // Track unsaved changes
+  const isMountedRef = useRef(false)
+  useEffect(() => {
+    if (!isMountedRef.current) { isMountedRef.current = true; return }
+    setIsDirty(true)
+  }, [pred])
+  useEffect(() => {
+    if (saveStatus === "saved") setIsDirty(false)
+  }, [saveStatus])
+
+  // Warn before closing tab/refreshing with unsaved changes
+  useEffect(() => {
+    if (!isDirty || clientLocked) return
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty, clientLocked])
 
   // ── Getters ────────────────────────────────────────────────────────────────
 
@@ -322,6 +342,29 @@ export function KnockoutBracketForm({ teams, teamById, r32Matches, firstR32Date,
   const [ft1, ft2] = getFinalTeams()
   const [tp1, tp2] = getThirdPlaceTeams()
 
+  // Count actionable missing picks (teams known but no pick yet)
+  let missingCount = 0
+  if (!clientLocked) {
+    for (let i = 0; i < 16; i++) {
+      const m = r32ByMatchNum[R32_MATCH_NUMS[i]]
+      if (m && teamById[m.home_team_id] && teamById[m.away_team_id] && !pred.r32[i]) missingCount++
+    }
+    for (let i = 0; i < 8; i++) {
+      const [a, b] = R16_PAIRS[i]
+      if (pred.r32[a] && pred.r32[b] && !pred.r16[i]) missingCount++
+    }
+    for (let i = 0; i < 4; i++) {
+      const [a, b] = QF_PAIRS[i]
+      if (pred.r16[a] && pred.r16[b] && !pred.qf[i]) missingCount++
+    }
+    for (let i = 0; i < 2; i++) {
+      const [a, b] = SF_PAIRS[i]
+      if (pred.qf[a] && pred.qf[b] && !pred.sf[i]) missingCount++
+    }
+    if (pred.sf[0] && pred.sf[1] && !pred.champion) missingCount++
+    if (tp1 && tp2 && !pred.third) missingCount++
+  }
+
   // No R32 matches yet
   if (r32Matches.length === 0) {
     return (
@@ -366,6 +409,14 @@ export function KnockoutBracketForm({ teams, teamById, r32Matches, firstR32Date,
           )}
         </div>
 
+        {/* Countdown */}
+        {!clientLocked && (
+          <BracketCountdown
+            variant="compact"
+            lockTime={firstR32Date ? new Date(new Date(firstR32Date).getTime() - 10 * 60 * 1000) : null}
+          />
+        )}
+
         {/* Progress */}
         <div className="flex items-center gap-3 text-xs">
           <div className="flex-1 bg-(--color-surface-2) rounded-full h-1.5 overflow-hidden">
@@ -381,6 +432,23 @@ export function KnockoutBracketForm({ teams, teamById, r32Matches, firstR32Date,
         {clientLocked && (
           <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 rounded-xl px-4 py-3 text-sm">
             El bracket eliminatorio está bloqueado. Ya no se pueden hacer cambios.
+          </div>
+        )}
+        {!clientLocked && isDirty && (
+          <div className="bg-orange-900/30 border border-orange-600 text-orange-300 rounded-xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+            <span>Tienes cambios sin guardar.</span>
+            <button
+              onClick={handleSave}
+              disabled={isPending}
+              className="shrink-0 px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-xs font-medium transition disabled:opacity-60"
+            >
+              {isPending ? "Guardando…" : "Guardar ahora"}
+            </button>
+          </div>
+        )}
+        {!clientLocked && missingCount > 0 && (
+          <div className="bg-blue-900/30 border border-blue-700 text-blue-300 rounded-xl px-4 py-3 text-sm">
+            Faltan <span className="font-semibold">{missingCount}</span> {missingCount === 1 ? "enfrentamiento" : "enfrentamientos"} por predecir (incluyendo tercer puesto si aplica).
           </div>
         )}
         {saveStatus === "error" && saveError && (

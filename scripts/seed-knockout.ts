@@ -47,11 +47,11 @@ const STAGE_START: Record<string, number> = {
 
 function fifaStageToMatchStage(stageName: string): MatchStage | null {
   const s = stageName.toLowerCase();
-  if (s.includes("round of 32") || s.includes("last 32")) return "round_of_32";
-  if (s.includes("round of 16") || s.includes("last 16")) return "round_of_16";
-  if (s.includes("quarter")) return "quarter_final";
+  if (s.includes("round of 32") || s.includes("last 32") || s.includes("dieciseisavo") || s.includes("treintaidosavo")) return "round_of_32";
+  if (s.includes("round of 16") || s.includes("last 16") || s.includes("octavo")) return "round_of_16";
+  if (s.includes("quarter") || s.includes("cuarto")) return "quarter_final";
   if (s.includes("semi")) return "semi_final";
-  if (s.includes("third") || s.includes("3rd") || s.includes("play-off for third")) return "third_place";
+  if (s.includes("third") || s.includes("3rd") || s.includes("play-off for third") || s.includes("tercer")) return "third_place";
   if (s.includes("final")) return "final";
   return null;
 }
@@ -67,7 +67,8 @@ async function main() {
 
   // Filter to knockout matches (GroupName is null/empty for knockout)
   const knockoutMatches = allFifaMatches.filter((m: any) => {
-    const isGroup = !!(m.GroupName ?? m.Group?.Name);
+    const groupName = m.GroupName ?? m.Group?.Name;
+    const isGroup = Array.isArray(groupName) ? groupName.length > 0 : !!groupName;
     return !isGroup;
   });
   console.log(`  Knockout matches found: ${knockoutMatches.length}`);
@@ -97,7 +98,7 @@ async function main() {
   for (const m of knockoutMatches) {
     const rawStage: string =
       m.StageName?.find((s: any) => s.Locale === "en-GB")?.Description ??
-      m.StageName?.[0]?.Description ??
+      m.StageName?.find((s: { Description?: string }) => s.Description)?.Description ??
       "";
     const stage = fifaStageToMatchStage(rawStage);
     if (!stage) {
@@ -134,13 +135,13 @@ async function main() {
 
     for (let i = 0; i < matches.length; i++) {
       const fm = matches[i];
-      const matchNumber = startNum + i;
+      const matchNumber: number = fm.MatchNumber ?? (startNum + i);
       const fifaId: string = fm.IdMatch;
 
       const homeAbbr: string | undefined =
-        fm.HomeTeam?.Abbreviation ?? fm.Home?.Abbreviation;
+        fm.Home?.Abbreviation ?? fm.HomeTeam?.Abbreviation;
       const awayAbbr: string | undefined =
-        fm.AwayTeam?.Abbreviation ?? fm.Away?.Abbreviation;
+        fm.Away?.Abbreviation ?? fm.AwayTeam?.Abbreviation;
 
       if (!homeAbbr || !awayAbbr) {
         console.log(`  M${matchNumber} — TBD vs TBD (teams not decided yet, skipping)`);
