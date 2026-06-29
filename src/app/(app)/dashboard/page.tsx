@@ -169,9 +169,17 @@ export default async function DashboardPage() {
     for (const m of liveMatches) {
       const matchEvts = (liveEventsResult.data ?? []).filter((e) => e.match_id === m.id);
       const firstEvt = matchEvts.find((e) => e.is_first_goal);
+      // For KO stages, only goals at minute ≤ 90 count toward predictions.
+      const isKnockout = m.stage !== "group";
+      const homeScore = isKnockout
+        ? matchEvts.filter((e) => e.team_id === m.home_team?.id && e.minute !== null && e.minute <= 90).length
+        : (m.home_score ?? 0);
+      const awayScore = isKnockout
+        ? matchEvts.filter((e) => e.team_id === m.away_team?.id && e.minute !== null && e.minute <= 90).length
+        : (m.away_score ?? 0);
       liveMatchStateMap[m.id] = {
-        homeScore: m.home_score ?? 0,
-        awayScore: m.away_score ?? 0,
+        homeScore,
+        awayScore,
         firstGoalTeamId: firstEvt?.team_id ?? null,
         firstGoalScorerName: firstEvt?.player_name ?? null,
         hasPenalty: matchEvts.some((e) => e.penalty_scored),

@@ -3,44 +3,64 @@
 import { useState } from "react"
 import { R32_DEFS, GROUPS, type BracketPredictionData, type TeamInfo } from "@/lib/utils/bracket"
 
-// ── Diagram layout constants ───────────────────────────────────────────────────
-const CARD_W   = 84
-const CARD_H   = 44
-const CHAMP_H  = 80
-const CHAMP_GAP = 20
-const V_GAP    = 48
-const DG_W     = 1440  // 16 * 90 — each slot is 90px wide
+// ── Exported types ─────────────────────────────────────────────────────────────
 
-function lY(level: number) {
-  return CHAMP_H + CHAMP_GAP + level * (CARD_H + V_GAP)
-}
-// Center X of card at (level, idx): parent is always centered between its two children
-function ccX(level: number, idx: number) {
-  return (idx + 0.5) * (DG_W / (1 << level))
-}
-function clX(level: number, idx: number) {
-  return ccX(level, idx) - CARD_W / 2
+export interface PtsConfig {
+  groups: number
+  groupsThird: number
+  r32: number
+  r16: number
+  qf: number
+  sf: number
+  champion: number
 }
 
-const DG_H = lY(4) + CARD_H + 24
+export interface GroupPredDetail {
+  group: string
+  predictedFirst: string | null
+  predictedSecond: string | null
+  actualFirst: string | null
+  actualSecond: string | null
+}
 
-// Precomputed SVG connector paths (one parent → two children, top-down)
-const CONNECTOR_PATHS = (() => {
-  const s: string[] = []
-  for (let l = 0; l < 4; l++) {
-    for (let i = 0; i < 1 << l; i++) {
-      const px  = ccX(l, i)
-      const py  = lY(l) + CARD_H
-      const cx0 = ccX(l + 1, 2 * i)
-      const cx1 = ccX(l + 1, 2 * i + 1)
-      const cy  = lY(l + 1)
-      const my  = (py + cy) / 2
-      // drop from parent → horizontal bar → drops to children
-      s.push(`M${px},${py} V${my} H${cx0} V${cy} M${cx0},${my} H${cx1} V${cy}`)
-    }
-  }
-  return s.join(" ")
-})()
+export interface SlotPredDetail {
+  matchId?: string
+  predictedId: string | null
+  actualId: string | null
+}
+
+export interface BracketBreakdown {
+  groups: number
+  r32: number
+  r16: number
+  qf: number
+  sf: number
+  champion: number
+}
+
+export interface BracketDetail {
+  groups: GroupPredDetail[]
+  r32Thirds: SlotPredDetail[]
+  r32: SlotPredDetail[]
+  r16: SlotPredDetail[]
+  qf: SlotPredDetail[]
+  sf: SlotPredDetail[]
+  champion: SlotPredDetail
+}
+
+export interface KoMatchPrediction {
+  dbMatchId: string
+  matchId: string
+  stage: string
+  homeTeamId: string | null
+  awayTeamId: string | null
+  homeScore: number | null
+  awayScore: number | null
+  status: string
+  winnerId: string | null
+  predictedWinnerId: string | null
+  pointsPerPick: number
+}
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -69,51 +89,43 @@ function TeamChip({ team, size = 20 }: { team: TeamInfo | null | undefined; size
   )
 }
 
-function DgCard({
-  home, away, winnerId, style,
-}: {
-  home: TeamInfo | null
-  away: TeamInfo | null
-  winnerId: string | null | undefined
-  style?: React.CSSProperties
-}) {
+function PtsBadge({ points }: { points: number }) {
   return (
-    <div
-      className="absolute flex flex-col overflow-hidden rounded-lg border border-(--color-border) bg-(--color-surface)"
-      style={{ width: CARD_W, height: CARD_H, ...style }}
-    >
-      {[{ team: home }, { team: away }].map(({ team }, i) => {
-        const win = !!team && winnerId === team.id
-        return (
-          <div
-            key={i}
-            className={`flex items-center gap-1 px-1.5 flex-1 min-w-0 ${
-              i === 0 ? "border-b border-(--color-border)" : ""
-            } ${win ? "bg-(--color-accent)/10" : ""}`}
-          >
-            {team ? (
-              <>
-                <img
-                  src={team.flag_url ?? ""}
-                  alt={team.fifa_code}
-                  className="w-4 h-[11px] object-cover rounded-[2px] shrink-0"
-                  onError={e => { (e.target as HTMLImageElement).style.opacity = "0" }}
-                />
-                <span className={`text-[8.5px] truncate leading-none font-medium ${
-                  win ? "text-(--color-accent)" : "text-(--color-foreground)"
-                }`}>
-                  {team.fifa_code}
-                </span>
-                {win && <span className="ml-auto text-[7px] text-(--color-accent) shrink-0">▲</span>}
-              </>
-            ) : (
-              <span className="text-[8px] text-(--color-muted) italic leading-none">···</span>
-            )}
-          </div>
-        )
-      })}
+    <span className="ml-auto text-[10px] font-semibold text-emerald-400 shrink-0 tabular-nums">
+      +{points}
+    </span>
+  )
+}
+
+function SectionHeader({ label, earned }: { label: string; earned?: number }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">{label}</p>
+      {!!earned && earned > 0 && (
+        <span className="text-xs font-semibold text-emerald-400 tabular-nums">+{earned} pts</span>
+      )}
     </div>
   )
+}
+
+// ── KO stage config ────────────────────────────────────────────────────────────
+
+const STAGE_LABELS: Record<string, string> = {
+  round_of_32:   "Ronda de 32",
+  round_of_16:   "Octavos de Final",
+  quarter_final: "Cuartos de Final",
+  semi_final:    "Semifinales",
+  third_place:   "Tercer Lugar",
+  final:         "Final",
+}
+
+const STAGE_ORDER = ["round_of_32", "round_of_16", "quarter_final", "semi_final", "third_place", "final"]
+
+function calcKoEarned(match: KoMatchPrediction): number | null {
+  if (match.status !== "finished") return null
+  if (!match.predictedWinnerId) return null
+  if (!match.winnerId) return null
+  return match.predictedWinnerId === match.winnerId ? match.pointsPerPick : 0
 }
 
 // ── BracketViewer ──────────────────────────────────────────────────────────────
@@ -122,10 +134,18 @@ interface Props {
   bracket: BracketPredictionData
   teams: TeamInfo[]
   isMe: boolean
+  bracketDetail: BracketDetail | null
+  bracketBreakdown: BracketBreakdown | null
+  bracketPts: PtsConfig
+  finishedGroups: Set<string>
+  koPredictions: KoMatchPrediction[]
+  defaultMode?: "bracket" | "ko"
 }
 
-export function BracketViewer({ bracket, teams }: Props) {
-  const [mode, setMode] = useState<"lista" | "diagrama">("lista")
+export function BracketViewer({
+  bracket, teams, bracketDetail, bracketBreakdown, bracketPts, finishedGroups, koPredictions, defaultMode = "bracket",
+}: Props) {
+  const [mode, setMode] = useState<"bracket" | "ko">(defaultMode)
 
   const teamById = Object.fromEntries(teams.map(tm => [tm.id, tm]))
   const t = (id: string | null | undefined): TeamInfo | null =>
@@ -139,30 +159,27 @@ export function BracketViewer({ bracket, teams }: Props) {
     return t(bracket.r32_third?.[matchIdx])
   }
 
-  // Get the two participants and winner for a match at (level, idx)
-  // level 0 = Final (top), level 4 = R32 (bottom)
-  function getMatch(level: number, idx: number) {
-    if (level === 4) {
-      const def = R32_DEFS[idx]
-      return { home: resolveR32(def.home, idx), away: resolveR32(def.away, idx), winnerId: bracket.r32?.[idx] }
-    }
-    if (level === 3) return { home: t(bracket.r32?.[2 * idx]), away: t(bracket.r32?.[2 * idx + 1]), winnerId: bracket.r16?.[idx] }
-    if (level === 2) return { home: t(bracket.r16?.[2 * idx]), away: t(bracket.r16?.[2 * idx + 1]), winnerId: bracket.qf?.[idx] }
-    if (level === 1) return { home: t(bracket.qf?.[2 * idx]), away: t(bracket.qf?.[2 * idx + 1]), winnerId: bracket.sf?.[idx] }
-    // level 0: Final
-    return { home: t(bracket.sf?.[0]), away: t(bracket.sf?.[1]), winnerId: bracket.champion }
-  }
-
   const champion  = t(bracket.champion)
   const third     = t(bracket.third)
   const finalist1 = t(bracket.sf?.[0])
   const finalist2 = t(bracket.sf?.[1])
 
+  // Split groups total into 1st/2nd picks vs terceros (both live in bracketBreakdown.groups)
+  const tercerosPts = (bracketDetail?.r32Thirds ?? [])
+    .filter(s => s.predictedId && s.predictedId === s.actualId)
+    .length * bracketPts.groupsThird
+  const groupsOnlyPts = (bracketBreakdown?.groups ?? 0) - tercerosPts
+
+  // Total bracket points for summary
+  const totalBracketPts = bracketBreakdown
+    ? Object.values(bracketBreakdown).reduce((a, b) => a + b, 0)
+    : null
+
   return (
     <div className="space-y-4">
       {/* Toggle */}
       <div className="flex gap-1 p-1 bg-(--color-surface) border border-(--color-border) rounded-lg w-fit">
-        {(["lista", "diagrama"] as const).map(m => (
+        {(["bracket", "ko"] as const).map(m => (
           <button
             key={m}
             onClick={() => setMode(m)}
@@ -172,15 +189,26 @@ export function BracketViewer({ bracket, teams }: Props) {
                 : "text-(--color-muted) hover:text-(--color-foreground)"
             }`}
           >
-            {m === "lista" ? "Lista" : "Diagrama"}
+            {m === "bracket" ? "Bracket" : "KO"}
           </button>
         ))}
       </div>
 
-      {mode === "lista" ? (
+      {mode === "bracket" ? (
         <div className="space-y-6">
-          {/* Champion */}
+          {/* Points summary */}
+          {totalBracketPts !== null && totalBracketPts > 0 && (
+            <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-4 py-3 flex items-center justify-between">
+              <span className="text-xs font-semibold text-emerald-300 uppercase tracking-widest">Puntos de bracket</span>
+              <span className="text-lg font-bold text-emerald-400 tabular-nums">+{totalBracketPts}</span>
+            </div>
+          )}
+
+          {/* Campeón */}
           <div className="relative bg-linear-to-br from-yellow-500/15 via-yellow-400/5 to-transparent border border-yellow-500/30 rounded-2xl p-6 text-center">
+            {bracketDetail?.champion.actualId !== null && bracketDetail?.champion.predictedId === bracketDetail?.champion.actualId && (
+              <span className="absolute top-3 right-4 text-sm font-bold text-emerald-400 tabular-nums">+{bracketPts.champion}</span>
+            )}
             <p className="text-xs font-semibold uppercase tracking-widest text-yellow-400/70 mb-3">Campeón</p>
             <div className="flex flex-col items-center gap-3">
               <Flag team={champion} size={64} />
@@ -195,11 +223,21 @@ export function BracketViewer({ bracket, teams }: Props) {
 
           {/* Gran Final */}
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-3">Gran Final</p>
+            <SectionHeader label="Gran Final" earned={bracketBreakdown?.sf} />
             <div className="flex items-center gap-3 mb-4">
-              <div className="flex-1"><TeamChip team={finalist1} /></div>
+              <div className="flex-1 flex items-center gap-1.5">
+                <TeamChip team={finalist1} />
+                {bracketDetail?.sf[0]?.actualId !== null && bracketDetail?.sf[0]?.predictedId === bracketDetail?.sf[0]?.actualId && (
+                  <PtsBadge points={bracketPts.sf} />
+                )}
+              </div>
               <span className="text-xs text-(--color-muted) font-semibold">vs</span>
-              <div className="flex-1 flex justify-end"><TeamChip team={finalist2} /></div>
+              <div className="flex-1 flex justify-end items-center gap-1.5">
+                {bracketDetail?.sf[1]?.actualId !== null && bracketDetail?.sf[1]?.predictedId === bracketDetail?.sf[1]?.actualId && (
+                  <PtsBadge points={bracketPts.sf} />
+                )}
+                <TeamChip team={finalist2} />
+              </div>
             </div>
             <div className="border-t border-(--color-border)/50 pt-3 flex items-center gap-2">
               <span className="text-xs text-(--color-muted) shrink-0">3er lugar:</span>
@@ -209,14 +247,17 @@ export function BracketViewer({ bracket, teams }: Props) {
 
           {/* Semifinales */}
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-3">Semifinales</p>
+            <SectionHeader label="Semifinales" earned={bracketBreakdown?.qf} />
             <div className="grid grid-cols-2 gap-3">
               {[0, 1, 2, 3].map(i => {
                 const team = t(bracket.qf?.[i])
+                const detail = bracketDetail?.qf[i]
+                const correct = detail?.actualId !== null && detail?.predictedId === detail?.actualId
                 return (
                   <div key={i} className="flex items-center gap-2 bg-white/4 rounded-lg px-3 py-2">
                     <Flag team={team} size={20} />
                     <span className="text-sm truncate">{team?.name ?? "—"}</span>
+                    {correct && <PtsBadge points={bracketPts.qf} />}
                   </div>
                 )
               })}
@@ -225,14 +266,17 @@ export function BracketViewer({ bracket, teams }: Props) {
 
           {/* Cuartos de Final */}
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-3">Cuartos de Final</p>
+            <SectionHeader label="Cuartos de Final" earned={bracketBreakdown?.r16} />
             <div className="grid grid-cols-2 gap-2">
               {[0, 1, 2, 3, 4, 5, 6, 7].map(i => {
                 const team = t(bracket.r16?.[i])
+                const detail = bracketDetail?.r16[i]
+                const correct = detail?.actualId !== null && detail?.predictedId === detail?.actualId
                 return (
                   <div key={i} className="flex items-center gap-2 bg-white/4 rounded-lg px-3 py-2">
                     <Flag team={team} size={18} />
                     <span className="text-xs truncate">{team?.name ?? "—"}</span>
+                    {correct && <PtsBadge points={bracketPts.r16} />}
                   </div>
                 )
               })}
@@ -241,14 +285,17 @@ export function BracketViewer({ bracket, teams }: Props) {
 
           {/* Octavos de Final */}
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-3">Octavos de Final</p>
+            <SectionHeader label="Octavos de Final" earned={bracketBreakdown?.r32} />
             <div className="grid grid-cols-2 gap-2">
               {Array.from({ length: 16 }, (_, i) => {
                 const team = t(bracket.r32?.[i])
+                const detail = bracketDetail?.r32[i]
+                const correct = detail?.actualId !== null && detail?.predictedId === detail?.actualId
                 return (
                   <div key={i} className="flex items-center gap-2 bg-white/4 rounded-lg px-3 py-2">
                     <Flag team={team} size={16} />
                     <span className="text-xs truncate">{team?.name ?? "—"}</span>
+                    {correct && <PtsBadge points={bracketPts.r32} />}
                   </div>
                 )
               })}
@@ -257,7 +304,7 @@ export function BracketViewer({ bracket, teams }: Props) {
 
           {/* Ronda de 32 */}
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-3">Ronda de 32</p>
+            <SectionHeader label="Ronda de 32" />
             <div className="space-y-1.5">
               {R32_DEFS.map((def, i) => {
                 const home = resolveR32(def.home, i)
@@ -280,23 +327,73 @@ export function BracketViewer({ bracket, teams }: Props) {
             </div>
           </div>
 
+          {/* Terceros que pasan */}
+          {bracketDetail?.r32Thirds.some(s => s.predictedId) && (
+              <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+                <SectionHeader label="Terceros que pasan" earned={tercerosPts > 0 ? tercerosPts : undefined} />
+                <div className="flex flex-wrap gap-1.5">
+                  {bracketDetail.r32Thirds.map((slot, i) => {
+                    if (!slot.predictedId) return null
+                    const team = teamById[slot.predictedId] ?? null
+                    const hasResult = slot.actualId !== null
+                    const correct = hasResult && slot.predictedId === slot.actualId
+                    return (
+                      <div
+                        key={i}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 border ${
+                          hasResult
+                            ? correct
+                              ? "bg-emerald-500/10 border-emerald-500/20"
+                              : "bg-red-500/10 border-red-500/20"
+                            : "bg-white/4 border-(--color-border)"
+                        }`}
+                      >
+                        <Flag team={team} size={16} />
+                        <span className={`text-xs font-medium ${
+                          hasResult ? (correct ? "text-emerald-400" : "text-red-400") : ""
+                        }`}>
+                          {team?.fifa_code ?? "?"}
+                        </span>
+                        {correct && (
+                          <span className="text-[9px] font-semibold text-emerald-400">+{bracketPts.groupsThird}</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+          )}
+
           {/* Grupos */}
           <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted) mb-4">Grupos</p>
+            <SectionHeader label="Grupos" earned={groupsOnlyPts > 0 ? groupsOnlyPts : undefined} />
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {GROUPS.map(g => {
                 const gp = bracket.groups?.[g]
                 const first  = t(gp?.first)
                 const second = t(gp?.second)
+                const detail = bracketDetail?.groups.find(d => d.group === g)
+                const c1 = detail?.actualFirst  !== null && detail?.predictedFirst  === detail?.actualFirst
+                const c2 = detail?.actualSecond !== null && detail?.predictedSecond === detail?.actualSecond
+                const isLocked = finishedGroups.has(g)
                 return (
                   <div key={g} className="bg-white/4 rounded-lg p-2.5">
-                    <p className="text-[10px] font-bold text-(--color-muted) uppercase mb-2">Grupo {g}</p>
+                    <div className="flex items-center gap-0.5 mb-2">
+                      <p className="text-[10px] font-bold text-(--color-muted) uppercase">Grupo {g}</p>
+                      {isLocked && <span className="text-[8px] text-emerald-400 ml-0.5">✓</span>}
+                    </div>
                     <div className="space-y-1.5">
-                      {[{ pos: "1°", team: first }, { pos: "2°", team: second }].map(({ pos, team }) => (
+                      {[
+                        { pos: "1°", team: first, correct: c1 },
+                        { pos: "2°", team: second, correct: c2 },
+                      ].map(({ pos, team, correct }) => (
                         <div key={pos} className="flex items-center gap-1.5">
                           <span className="text-[10px] text-(--color-muted) w-3 shrink-0">{pos}</span>
                           <Flag team={team} size={16} />
-                          <span className="text-xs truncate">{team?.fifa_code ?? "—"}</span>
+                          <span className={`text-xs truncate ${correct ? "text-emerald-400" : ""}`}>
+                            {team?.fifa_code ?? "—"}
+                          </span>
+                          {correct && <span className="text-[9px] font-semibold text-emerald-400 ml-auto">+{bracketPts.groups}</span>}
                         </div>
                       ))}
                     </div>
@@ -307,74 +404,97 @@ export function BracketViewer({ bracket, teams }: Props) {
           </div>
         </div>
       ) : (
-        /* ── Diagram view ─────────────────────────────────────────────────────── */
-        <div>
-          <div className="overflow-x-auto -mx-4 px-4">
-            <div className="relative select-none" style={{ width: DG_W, height: DG_H }}>
-
-              {/* Champion at top center */}
-              <div
-                className="absolute flex flex-col items-center gap-2 text-center"
-                style={{ top: 0, left: DG_W / 2 - 80, width: 160 }}
-              >
-                <p className="text-[9px] font-bold uppercase tracking-widest text-yellow-400/70">Campeón</p>
-                <Flag team={champion} size={48} />
-                <p className="text-xs font-bold leading-tight">{champion?.name ?? "—"}</p>
-              </div>
-
-              {/* Level labels */}
-              {[
-                { level: 0, label: "Gran Final" },
-                { level: 1, label: "Semifinal" },
-                { level: 2, label: "Cuartos" },
-                { level: 3, label: "Octavos" },
-                { level: 4, label: "R32" },
-              ].map(({ level, label }) => (
-                <div
-                  key={level}
-                  className="absolute text-[8px] font-bold uppercase tracking-widest text-(--color-muted)"
-                  style={{ top: lY(level) + CARD_H / 2 - 5, left: 0 }}
-                >
-                  {label}
+        /* ── KO tab ─────────────────────────────────────────────────────────── */
+        <div className="space-y-6">
+          {STAGE_ORDER.map(stage => {
+            const matches = koPredictions.filter(p => p.stage === stage)
+            if (matches.length === 0) return null
+            const stagePts = matches.reduce((sum, m) => sum + (calcKoEarned(m) ?? 0), 0)
+            const stagePossible = matches[0]?.pointsPerPick ?? 1
+            return (
+              <div key={stage} className="bg-(--color-surface) border border-(--color-border) rounded-xl p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-(--color-muted)">
+                      {STAGE_LABELS[stage] ?? stage}
+                    </p>
+                    <p className="text-[9px] text-muted/60 mt-0.5">+{stagePossible} pts por ganador</p>
+                  </div>
+                  {stagePts > 0 && (
+                    <span className="text-xs font-semibold text-emerald-400 tabular-nums">+{stagePts} pts</span>
+                  )}
                 </div>
-              ))}
+                <div className="space-y-2">
+                  {matches.map(match => {
+                    const home      = match.homeTeamId ? (teamById[match.homeTeamId] ?? null) : null
+                    const away      = match.awayTeamId ? (teamById[match.awayTeamId] ?? null) : null
+                    const predTeam  = match.predictedWinnerId ? (teamById[match.predictedWinnerId] ?? null) : null
+                    const hasResult = match.status === "finished"
+                    const homeWon   = hasResult && match.winnerId === match.homeTeamId
+                    const awayWon   = hasResult && match.winnerId === match.awayTeamId
+                    const earned    = calcKoEarned(match)
+                    const correct   = earned !== null && earned > 0
 
-              {/* SVG connectors */}
-              <svg
-                width={DG_W}
-                height={DG_H}
-                className="absolute inset-0 pointer-events-none"
-              >
-                <path
-                  d={CONNECTOR_PATHS}
-                  stroke="var(--color-border)"
-                  strokeWidth="1.5"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+                    return (
+                      <div key={match.dbMatchId} className="flex items-center gap-2 bg-white/4 rounded-lg px-3 py-2.5">
+                        <span className="text-[10px] text-(--color-muted) font-mono w-8 shrink-0">{match.matchId}</span>
 
-              {/* Match cards for all levels */}
-              {[0, 1, 2, 3, 4].map(level =>
-                Array.from({ length: 1 << level }, (_, idx) => {
-                  const { home, away, winnerId } = getMatch(level, idx)
-                  return (
-                    <DgCard
-                      key={`${level}-${idx}`}
-                      home={home}
-                      away={away}
-                      winnerId={winnerId}
-                      style={{ top: lY(level), left: clX(level, idx) }}
-                    />
-                  )
-                })
-              )}
+                        {/* Home team */}
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <Flag team={home} size={16} />
+                          <span className={`text-xs truncate font-medium ${homeWon ? "text-(--color-accent)" : ""}`}>
+                            {home?.name ?? "···"}
+                          </span>
+                        </div>
+
+                        {/* Center: score + predicted winner */}
+                        <div className="flex flex-col items-center gap-0.5 shrink-0 min-w-12">
+                          <span className={`text-xs font-bold tabular-nums ${
+                            hasResult ? "text-(--color-foreground)" :
+                            match.status === "live" ? "text-emerald-400" : "text-(--color-muted)"
+                          }`}>
+                            {hasResult
+                              ? `${match.homeScore}-${match.awayScore}`
+                              : match.status === "live" ? "EN VIVO" : "vs"}
+                          </span>
+                          {predTeam ? (
+                            <div className={`flex items-center gap-0.5 ${correct ? "text-emerald-400" : earned === 0 ? "text-red-400/70" : "text-(--color-muted)"}`}>
+                              <Flag team={predTeam} size={12} />
+                              <span className="text-[8px] font-medium">{predTeam.fifa_code}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] text-(--color-muted) italic">—</span>
+                          )}
+                        </div>
+
+                        {/* Away team */}
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                          <span className={`text-xs truncate text-right font-medium ${awayWon ? "text-(--color-accent)" : ""}`}>
+                            {away?.name ?? "···"}
+                          </span>
+                          <Flag team={away} size={16} />
+                        </div>
+
+                        {/* Points */}
+                        {correct && (
+                          <span className="text-[10px] font-semibold text-emerald-400 shrink-0 tabular-nums">+{earned}</span>
+                        )}
+                        {earned === 0 && predTeam && (
+                          <span className="text-[10px] text-red-400/70 shrink-0">0</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
+          {koPredictions.length === 0 && (
+            <div className="bg-(--color-surface) border border-(--color-border) rounded-xl p-8 text-center">
+              <p className="text-(--color-muted) text-sm">Sin pronósticos de partidos KO</p>
             </div>
-          </div>
-          <p className="text-center text-[11px] text-(--color-muted) mt-2 md:hidden">
-            ← desliza para ver todo el bracket →
-          </p>
+          )}
         </div>
       )}
     </div>

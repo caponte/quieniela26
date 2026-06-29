@@ -13,6 +13,8 @@ export interface MatchWithTeams {
   group_name: string | null
   home_score: number | null
   away_score: number | null
+  home_score_90: number | null
+  away_score_90: number | null
   status: string
   fifa_match_id: string | null
   home_team: Team | null

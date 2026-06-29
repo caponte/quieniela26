@@ -22,10 +22,33 @@
       { "match_id": "eb52baec-6a7e-41a2-99a0-2d7c94fa70b0", "home_goals": 2, "away_goals": 1, "winner": "COL", "first_team_to_score": "COL", "has_penalty": false, "first_goal_scorer": "Luis Díaz" },
       { "match_id": "ca2c0c5d-f0c1-43ea-a28e-0e4d6c66ebf4", "home_goals": 1, "away_goals": 2, "winner": "EGY", "first_team_to_score": "EGY", "has_penalty": false, "first_goal_scorer": "Mohamed Salah" }
     ],
-    "r16": [],
-    "qf": [],
-    "sf": [],
-    "third_place": { "winner": null },
-    "final": { "winner": null }
+    "r16": [
+      { "match_label": "M89", "winner": "GER", "has_penalty": false },
+      { "match_label": "M90", "winner": "BRA", "has_penalty": false },
+      { "match_label": "M93", "winner": "FRA", "has_penalty": false },
+      { "match_label": "M94", "winner": "ENG", "has_penalty": false },
+      { "match_label": "M91", "winner": "BEL", "has_penalty": false },
+      { "match_label": "M92", "winner": "POR", "has_penalty": false },
+      { "match_label": "M95", "winner": "ARG", "has_penalty": false },
+      { "match_label": "M96", "winner": "COL", "has_penalty": false }
+    ],
+    "qf": [
+      { "match_label": "M97",  "winner": "GER", "has_penalty": false },
+      { "match_label": "M98",  "winner": "FRA", "has_penalty": false },
+      { "match_label": "M99",  "winner": "POR", "has_penalty": false },
+      { "match_label": "M100", "winner": "ARG", "has_penalty": false }
+    ],
+    "sf": [
+      { "match_label": "M101", "winner": "FRA", "has_penalty": false },
+      { "match_label": "M102", "winner": "ARG", "has_penalty": false }
+    ],
+    "third_place": {
+      "match_label": "M103",
+      "winner": "GER"
+    },
+    "final": {
+      "match_label": "M104",
+      "winner": "ARG"
+    }
   }
 }

@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "user_email": "marcodelgadom99@gmail.com",
+    "user_name": "Marco Delgado"
+  },
+  "ko_predictions": {
+    "r32": [],
+    "r16": [
+      { "match_label": "M89", "winner": "FRA", "has_penalty": false },
+      { "match_label": "M90", "winner": "NED", "has_penalty": false },
+      { "match_label": "M93", "winner": "ESP", "has_penalty": false },
+      { "match_label": "M94", "winner": "SEN", "has_penalty": false },
+      { "match_label": "M91", "winner": "NOR", "has_penalty": false },
+      { "match_label": "M92", "winner": "ECU", "has_penalty": false },
+      { "match_label": "M95", "winner": "ARG", "has_penalty": false },
+      { "match_label": "M96", "winner": "COL", "has_penalty": false }
+    ],
+    "qf": [
+      { "match_label": "M97",  "winner": "FRA", "has_penalty": false },
+      { "match_label": "M98",  "winner": "ESP", "has_penalty": false },
+      { "match_label": "M99",  "winner": "NOR", "has_penalty": false },
+      { "match_label": "M100", "winner": "ARG", "has_penalty": false }
+    ],
+    "sf": [
+      { "match_label": "M101", "winner": "ESP", "has_penalty": false },
+      { "match_label": "M102", "winner": "ARG", "has_penalty": false }
+    ],
+    "third_place": {
+      "match_label": "M103",
+      "winner": "FRA"
+    },
+    "final": {
+      "match_label": "M104",
+      "winner": "ARG"
+    }
+  }
+}

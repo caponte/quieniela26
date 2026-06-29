@@ -203,13 +203,14 @@ async function main() {
     console.log("   ⏭  No bracket data provided — skipping bracket update");
   } else {
     // Fetch current bracket
-    const { data: existingBP } = await supabase
+    let bpQuery = supabase
       .from("bracket_predictions")
       .select("predictions")
-      .eq("user_id", userId)
-      .is("league_id", leagueId === null ? null : undefined)
-      .eq("league_id", leagueId ?? "")
-      .maybeSingle();
+      .eq("user_id", userId);
+    bpQuery = leagueId === null
+      ? bpQuery.is("league_id", null)
+      : bpQuery.eq("league_id", leagueId);
+    const { data: existingBP } = await bpQuery.maybeSingle();
 
     const existingPreds = existingBP?.predictions ?? {};
 

@@ -146,9 +146,26 @@ async function syncMatch(
     }
   }
 
+  // Compute 90-minute scores from individual goals (parseInt("90+3") === 90, so
+  // stoppage-time goals are included; ET goals at 91+ are excluded).
+  function count90(goals: any[]): number {
+    return goals.filter((g: any) => {
+      const m = g.Minute ? parseInt(g.Minute) : null;
+      return m !== null && m <= 90;
+    }).length;
+  }
+  const homeGoals90 = count90(fifaDetail.HomeTeam?.Goals ?? []);
+  const awayGoals90 = count90(fifaDetail.AwayTeam?.Goals ?? []);
+
   const { error: updateErr } = await db
     .from("matches")
-    .update({ home_score: homeGoals, away_score: awayGoals, status: newStatus })
+    .update({
+      home_score: homeGoals,
+      away_score: awayGoals,
+      home_score_90: homeGoals90,
+      away_score_90: awayGoals90,
+      status: newStatus,
+    })
     .eq("id", ourMatch.id);
 
   if (updateErr) errors.push(`match update: ${updateErr.message}`);

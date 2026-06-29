@@ -204,9 +204,18 @@ export default async function JornadaPage({ params, searchParams }: Props) {
         } : {}),
       }
       if (m.status === "live") {
+        // For KO stages, only goals at minute ≤ 90 count toward predictions.
+        // Group stage matches can't go to ET so use stored score directly.
+        const isKnockout = m.stage !== "group";
+        const homeScore = isKnockout
+          ? evts.filter((e) => e.type === "goal" && e.team_id === m.home_team?.id && e.minute !== null && e.minute <= 90).length
+          : (m.home_score ?? 0);
+        const awayScore = isKnockout
+          ? evts.filter((e) => e.type === "goal" && e.team_id === m.away_team?.id && e.minute !== null && e.minute <= 90).length
+          : (m.away_score ?? 0);
         liveStateMap[m.id] = {
-          homeScore: m.home_score ?? 0,
-          awayScore: m.away_score ?? 0,
+          homeScore,
+          awayScore,
           firstGoalTeamId: firstGoalEvt?.team_id ?? null,
           firstGoalScorerName: firstGoalEvt?.player_name ?? null,
           hasPenalty: evts.some((e) => e.type === "penalty"),

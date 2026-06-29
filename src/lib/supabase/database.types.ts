@@ -56,6 +56,8 @@ export interface Database {
           group_name: string | null;
           home_score: number | null;
           away_score: number | null;
+          home_score_90: number | null;
+          away_score_90: number | null;
           status: MatchStatus;
           match_number: number;
           api_fixture_id: number | null;
