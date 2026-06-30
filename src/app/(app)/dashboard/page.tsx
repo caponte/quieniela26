@@ -304,17 +304,36 @@ export default async function DashboardPage() {
     firstLeagueMemberIds.length && allPredMatchIds.length
       ? supabase
           .from("match_predictions")
-          .select("match_id, user_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, has_penalty")
+          .select("match_id, user_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, first_goal_scorer_id, has_penalty")
           .in("match_id", allPredMatchIds)
           .in("user_id", firstLeagueMemberIds)
-          .or(`league_id.is.null,league_id.eq.${firstLeague!.id}`) as unknown as Promise<{ data: { match_id: string; user_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean }[] | null }>
+          .or(`league_id.is.null,league_id.eq.${firstLeague!.id}`) as unknown as Promise<{ data: { match_id: string; user_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; first_goal_scorer_id: string | null; has_penalty: boolean }[] | null }>
 
-      : Promise.resolve({ data: [] as { match_id: string; user_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean }[] }),
+      : Promise.resolve({ data: [] as { match_id: string; user_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; first_goal_scorer_id: string | null; has_penalty: boolean }[] }),
   ]);
 
   const userMap = Object.fromEntries((usersRes.data ?? []).map((u) => [u.id, u]));
   const jornadaMap = (jornadaRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {});
   const bracketMap = (bracketRes.data ?? []).reduce<Record<string, number>>((acc, r) => { if (!(r.user_id in acc)) acc[r.user_id] = r.total_points; return acc }, {});
+
+  // Resolve player names for AI predictions that store a UUID in first_goal_scorer
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const leagueScorerIds = [...new Set(
+    (leaguePredsRes.data ?? []).flatMap((p) => {
+      const ids: string[] = []
+      if (p.first_goal_scorer_id) ids.push(p.first_goal_scorer_id)
+      if (p.first_goal_scorer && UUID_RE.test(p.first_goal_scorer)) ids.push(p.first_goal_scorer)
+      return ids
+    })
+  )]
+  const leagueScorerNameById: Record<string, string> = {}
+  if (leagueScorerIds.length > 0) {
+    const { data: leagueScorerPlayers } = await supabase
+      .from("players")
+      .select("id, name")
+      .in("id", leagueScorerIds) as unknown as { data: { id: string; name: string }[] | null }
+    for (const p of leagueScorerPlayers ?? []) leagueScorerNameById[p.id] = p.name
+  }
 
   // League predictors per match (deduplicated — NULL unique constraint doesn't hold in Postgres)
   const leaguePredsPerMatch: Record<string, { name: string; avatarUrl: string | null }[]> = {};
@@ -329,6 +348,11 @@ export default async function DashboardPage() {
     if (!leaguePredsPerMatch[p.match_id]) leaguePredsPerMatch[p.match_id] = [];
     leaguePredsPerMatch[p.match_id].push({ name: u.name, avatarUrl: u.avatar_url });
     if (!leagueFullPredsPerMatch[p.match_id]) leagueFullPredsPerMatch[p.match_id] = [];
+    const resolvedScorerName = p.first_goal_scorer_id
+      ? (leagueScorerNameById[p.first_goal_scorer_id] ?? p.first_goal_scorer)
+      : p.first_goal_scorer && UUID_RE.test(p.first_goal_scorer)
+        ? (leagueScorerNameById[p.first_goal_scorer] ?? p.first_goal_scorer)
+        : p.first_goal_scorer
     leagueFullPredsPerMatch[p.match_id].push({
       userId: p.user_id,
       name: u.name,
@@ -336,14 +360,14 @@ export default async function DashboardPage() {
       homeGoals: p.home_goals,
       awayGoals: p.away_goals,
       firstTeamToScoreId: p.first_team_to_score,
-      firstGoalScorer: p.first_goal_scorer,
+      firstGoalScorer: resolvedScorerName,
       isMe: p.user_id === user!.id,
       totalPoints: (jornadaMap[p.user_id] ?? 0) + (bracketMap[p.user_id] ?? 0),
       livePoints: liveMatchStateMap[p.match_id]
-        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: p.first_goal_scorer, hasPenalty: p.has_penalty }, liveMatchStateMap[p.match_id]).total
+        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: resolvedScorerName, hasPenalty: p.has_penalty }, liveMatchStateMap[p.match_id]).total
         : null,
       liveBreakdown: liveMatchStateMap[p.match_id]
-        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: p.first_goal_scorer, hasPenalty: p.has_penalty }, liveMatchStateMap[p.match_id])
+        ? calculateLivePoints({ homeGoals: p.home_goals, awayGoals: p.away_goals, firstTeamToScoreId: p.first_team_to_score, firstGoalScorer: resolvedScorerName, hasPenalty: p.has_penalty }, liveMatchStateMap[p.match_id])
         : null,
     });
   }

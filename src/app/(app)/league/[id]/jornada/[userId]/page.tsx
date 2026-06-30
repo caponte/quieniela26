@@ -36,6 +36,7 @@ interface PredictionRow {
   away_goals: number
   first_team_to_score: string | null
   first_goal_scorer: string | null
+  first_goal_scorer_id: string | null
   has_penalty: boolean
   match: MatchInfo | null
   match_points: PointsRow | null
@@ -102,7 +103,7 @@ export default async function PlayerJornadaDetailPage({ params }: Props) {
     supabase
       .from("match_predictions")
       .select(`
-        id, home_goals, away_goals, first_team_to_score, first_goal_scorer, has_penalty,
+        id, home_goals, away_goals, first_team_to_score, first_goal_scorer, first_goal_scorer_id, has_penalty,
         match:matches!match_predictions_match_id_fkey(
           id, match_number, stage, match_date, home_score, away_score,
           home_team:teams!matches_home_team_id_fkey(name, fifa_code),
@@ -120,7 +121,28 @@ export default async function PlayerJornadaDetailPage({ params }: Props) {
 
   const isMe = targetUserId === user.id
 
-  const predictions = (predsRes.data ?? [])
+  // Resolve player names: some rows store UUID in first_goal_scorer (AI preds),
+  // others store UUID in first_goal_scorer_id (human preds)
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const rawPreds = predsRes.data ?? []
+  const playerIds = [...new Set(
+    rawPreds.flatMap((p) => {
+      const ids: string[] = []
+      if (p.first_goal_scorer_id) ids.push(p.first_goal_scorer_id)
+      if (p.first_goal_scorer && UUID_RE.test(p.first_goal_scorer)) ids.push(p.first_goal_scorer)
+      return ids
+    })
+  )]
+  let playerNameById: Record<string, string> = {}
+  if (playerIds.length > 0) {
+    const { data: players } = await supabase
+      .from("players")
+      .select("id, name")
+      .in("id", playerIds) as unknown as { data: { id: string; name: string }[] | null }
+    for (const p of players ?? []) playerNameById[p.id] = p.name
+  }
+
+  const predictions = rawPreds
     .filter((p) => p.match !== null)
     .sort((a, b) => {
       const dateA = a.match?.match_date ?? ""
@@ -257,10 +279,16 @@ export default async function PlayerJornadaDetailPage({ params }: Props) {
                                 <span>{match.away_team?.fifa_code ?? "?"}</span>
                               </div>
                             </div>
-                            {pred.first_goal_scorer && (
+                            {(pred.first_goal_scorer || pred.first_goal_scorer_id) && (
                               <div>
                                 <p className="text-[10px] text-(--color-muted) uppercase tracking-widest mb-0.5">1er goleador</p>
-                                <span className="text-sm">{pred.first_goal_scorer}</span>
+                                <span className="text-sm">
+                                  {pred.first_goal_scorer_id
+                                    ? (playerNameById[pred.first_goal_scorer_id] ?? pred.first_goal_scorer)
+                                    : pred.first_goal_scorer && UUID_RE.test(pred.first_goal_scorer)
+                                      ? (playerNameById[pred.first_goal_scorer] ?? pred.first_goal_scorer)
+                                      : pred.first_goal_scorer}
+                                </span>
                               </div>
                             )}
                             <div>

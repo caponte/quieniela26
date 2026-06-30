@@ -246,10 +246,10 @@ export default async function JornadaPage({ params, searchParams }: Props) {
     const [leaguePredsRes, profilesRes, jornadaPtsRes, bracketPtsRes] = await Promise.all([
       supabase
         .from("match_predictions")
-        .select("user_id, match_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, has_penalty, match_points(total_points, breakdown)")
+        .select("user_id, match_id, home_goals, away_goals, first_team_to_score, first_goal_scorer, first_goal_scorer_id, has_penalty, match_points(total_points, breakdown)")
         .in("match_id", matchIds)
         .in("user_id", memberIds)
-        .or(`league_id.is.null,league_id.eq.${firstLeagueId}`) as unknown as Promise<{ data: { user_id: string; match_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; has_penalty: boolean; match_points: { total_points: number; breakdown: Record<string, boolean> | null } | null }[] | null }>,
+        .or(`league_id.is.null,league_id.eq.${firstLeagueId}`) as unknown as Promise<{ data: { user_id: string; match_id: string; home_goals: number; away_goals: number; first_team_to_score: string | null; first_goal_scorer: string | null; first_goal_scorer_id: string | null; has_penalty: boolean; match_points: { total_points: number; breakdown: Record<string, boolean> | null } | null }[] | null }>,
 
       supabase
         .from("users")
@@ -271,6 +271,25 @@ export default async function JornadaPage({ params, searchParams }: Props) {
     const jornadaMap = (jornadaPtsRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {})
     const bracketMap = (bracketPtsRes.data ?? []).reduce<Record<string, number>>((acc, r) => { acc[r.user_id] = (acc[r.user_id] ?? 0) + r.total_points; return acc }, {})
 
+    // Resolve player names for predictions that store a UUID in first_goal_scorer (AI preds)
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const scorerPlayerIds = [...new Set(
+      (leaguePredsRes.data ?? []).flatMap((p) => {
+        const ids: string[] = []
+        if (p.first_goal_scorer_id) ids.push(p.first_goal_scorer_id)
+        if (p.first_goal_scorer && UUID_RE.test(p.first_goal_scorer)) ids.push(p.first_goal_scorer)
+        return ids
+      })
+    )]
+    let scorerNameById: Record<string, string> = {}
+    if (scorerPlayerIds.length > 0) {
+      const { data: scorerPlayers } = await supabase
+        .from("players")
+        .select("id, name")
+        .in("id", scorerPlayerIds) as unknown as { data: { id: string; name: string }[] | null }
+      for (const p of scorerPlayers ?? []) scorerNameById[p.id] = p.name
+    }
+
     // Deduplicate: keep only the last prediction per (user_id, match_id)
     const seen = new Set<string>()
     for (const pred of [...(leaguePredsRes.data ?? [])].reverse()) {
@@ -280,8 +299,13 @@ export default async function JornadaPage({ params, searchParams }: Props) {
       if (!leaguePredsByMatchId[pred.match_id]) leaguePredsByMatchId[pred.match_id] = []
       const profile = profileMap[pred.user_id]
       const liveState = liveStateMap[pred.match_id] ?? null
+      const resolvedScorerName = pred.first_goal_scorer_id
+        ? (scorerNameById[pred.first_goal_scorer_id] ?? pred.first_goal_scorer)
+        : pred.first_goal_scorer && UUID_RE.test(pred.first_goal_scorer)
+          ? (scorerNameById[pred.first_goal_scorer] ?? pred.first_goal_scorer)
+          : pred.first_goal_scorer
       const liveCalc = liveState
-        ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: pred.first_goal_scorer, hasPenalty: pred.has_penalty }, liveState)
+        ? calculateLivePoints({ homeGoals: pred.home_goals, awayGoals: pred.away_goals, firstTeamToScoreId: pred.first_team_to_score, firstGoalScorer: resolvedScorerName, hasPenalty: pred.has_penalty }, liveState)
         : null
       leaguePredsByMatchId[pred.match_id].push({
         userId: pred.user_id,
@@ -290,7 +314,7 @@ export default async function JornadaPage({ params, searchParams }: Props) {
         homeGoals: pred.home_goals,
         awayGoals: pred.away_goals,
         firstTeamToScoreId: pred.first_team_to_score,
-        firstGoalScorer: pred.first_goal_scorer,
+        firstGoalScorer: resolvedScorerName,
         hasPenalty: pred.has_penalty,
         isMe: pred.user_id === user.id,
         totalPoints: (jornadaMap[pred.user_id] ?? 0) + (bracketMap[pred.user_id] ?? 0),
